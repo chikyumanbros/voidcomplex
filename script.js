@@ -5,6 +5,9 @@ const height = 90;  // 画面の縦幅（16:9の比率に近づける）
 let lifeforms = [];
 // グローバル変数としてenvironmentを宣言
 let environment;
+// リスタート用の変数を追加
+let restartTimer = 0;
+const RESTART_DELAY = 50; // 30秒後にリスタート（10FPSなので300フレーム）
 
 // グローバル変数として追加
 const initialLifeCount = 50;  // 初期生命体数
@@ -2502,6 +2505,19 @@ document.addEventListener('DOMContentLoaded', () => {
     // フレームを描画
     function render() {
         const zBuffer = initZBuffer();
+        
+        // 生命体が0になった場合のリスタート処理
+        if (lifeforms.length === 0) {
+            restartTimer++;
+            if (restartTimer >= RESTART_DELAY) {
+                console.log('生命体が絶滅したため、シミュレーションをリスタートします。');
+                init();
+                restartTimer = 0;
+                return;
+            }
+        } else {
+            restartTimer = 0;
+        }
         
         // 生命体を更新
         for (let i = lifeforms.length - 1; i >= 0; i--) {
