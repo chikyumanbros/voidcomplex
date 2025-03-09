@@ -14,6 +14,15 @@ const initialLifeCount = 50;  // 初期生命体数
 const maxLifeforms = 500;     // 最大生命体数
 let time = 0;                 // シミュレーション時間
 
+// 代謝産物の定義をグローバルスコープに移動
+const METABOLIC_PRODUCTS = {
+    OXYGEN: 'oxygen',
+    GLUCOSE: 'glucose',
+    AMINO_ACIDS: 'amino_acids',
+    WASTE: 'waste',
+    TOXINS: 'toxins'
+};
+
 document.addEventListener('DOMContentLoaded', () => {
  
     const canvas = document.getElementById('canvas');
@@ -22,15 +31,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const asciiChars = '☻█▓▒░σ▪°∙*+∷∴∵·';
     // ネットワーク関係を表す特殊文字を追加
     const networkChars = '╒╓╔╕╖╗╘╙╚╛╜╝';
-    
-    // 代謝産物の定義
-    const METABOLIC_PRODUCTS = {
-        OXYGEN: 'oxygen',
-        GLUCOSE: 'glucose',
-        AMINO_ACIDS: 'amino_acids',
-        WASTE: 'waste',
-        TOXINS: 'toxins'
-    };
     
     // 環境クラスの定義
     class Environment {
@@ -246,6 +246,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 reproductionRate: 0.3 + Math.random() * 0.7,
                 predatory: Math.random(),
                 size: 0.3 + Math.random() * 0.7,
+                
+                // メタプログラミング関連の特性を追加
+                metaprogrammingAbility: 0.2 + Math.random() * 0.6,
+                learningRate: 0.3 + Math.random() * 0.5,
+                creativity: 0.1 + Math.random() * 0.7,
+                adaptability: 0.4 + Math.random() * 0.5,
                 
                 // 光合成システム（改良）
                 photosynthesis: {
@@ -464,6 +470,64 @@ document.addEventListener('DOMContentLoaded', () => {
                 temperature: 0.01,    // 温度適応のエネルギーコスト
                 turbulence: 0.015,   // 乱流耐性のエネルギーコスト
                 visual: 0.008        // 視覚適応のエネルギーコスト
+            };
+            
+            // 認知階層システムを追加
+            this.cognition = new CognitiveHierarchy();
+            
+            // 認知能力に関連する DNA 特性を追加
+            this.dna.cognition = {
+                learningRate: 0.3 + Math.random() * 0.7,
+                abstractionCapacity: 0.1 + Math.random() * 0.4,
+                metacognitionAbility: 0.05 + Math.random() * 0.3,
+                patternRecognition: 0.2 + Math.random() * 0.6
+            };
+            
+            // DNA修復システムを追加
+            this.dnaRepairSystem = new DNARepairSystem(this);
+            
+            // DNA修復能力に関連する特性を追加
+            if (!this.dna.errorDetection) this.dna.errorDetection = 0.4 + Math.random() * 0.5;
+            if (!this.dna.repairEfficiency) this.dna.repairEfficiency = 0.3 + Math.random() * 0.6;
+            
+            // 通信能力に関連する DNA 特性を追加
+            if (!this.dna.communicationBandwidth) this.dna.communicationBandwidth = 0.3 + Math.random() * 0.5;
+            if (!this.dna.communicationReliability) this.dna.communicationReliability = 0.4 + Math.random() * 0.5;
+            
+            // 通信システムを初期化
+            this.communicationSystem = new CommunicationSystem(this);
+            
+            // 一意のID
+            this.id = Math.random().toString(36).substr(2, 9);
+            
+            // メモリシステム
+            this.memory = {
+                resourceLocations: [],
+                threats: [],
+                allies: [],
+                environmentalKnowledge: {}
+            };
+            
+            // 最後に発見したリソース
+            this.lastFoundResource = null;
+            
+            // メタプログラミングシステムを初期化
+            this.metaprogrammingSystem = new MetaprogrammingSystem(this);
+
+            // 創造性と問題解決に関する特性
+            this.creativitySystem = {
+                innovationPool: new Set(),
+                problemSolvingHistory: [],
+                adaptiveStrategies: new Map(),
+                currentChallenge: null
+            };
+
+            // 認知能力の拡張
+            this.dna.cognition = {
+                ...this.dna.cognition,
+                creativeProblemSolving: 0.2 + Math.random() * 0.4,
+                patternSynthesis: 0.3 + Math.random() * 0.4,
+                innovationCapacity: 0.1 + Math.random() * 0.5
             };
         }
         
@@ -1437,7 +1501,155 @@ document.addEventListener('DOMContentLoaded', () => {
                         this.dna._geneticHackingPotential = (this.dna._geneticHackingPotential || 0.5) * 1.01;
                     }
                 }
+                
+                // DNA修復システムを更新（一定確率で実行）
+                if (Math.random() < 0.05) { // 5%の確率で実行
+                    const repairResult = this.dnaRepairSystem.update();
+                    
+                    // 修復結果に基づいてフィードバック
+                    if (repairResult.repaired > 0) {
+                        // 修復成功のボーナス
+                        this.energy += 0.01 * repairResult.repaired;
+                    }
+                }
             }
+            
+            // 認知階層システムを更新
+            const cognitiveDecision = this.cognition.process(this, environment, lifeforms);
+            
+            // 認知的決定に基づいて行動を調整
+            this.applyDecision(cognitiveDecision);
+            
+            // メタプログラミングシステムを更新
+            const metaDecision = this.metaprogrammingSystem.update(environment, lifeforms);
+            
+            // メタプログラミングの決定に基づいて行動を調整
+            if (metaDecision) {
+                this.applyMetaDecision(metaDecision);
+            }
+            
+            // 認知能力の発達を更新
+            this.updateCognitiveAbilities();
+            
+            // 行動パターンを更新
+            this.updateBehavior(lifeforms, environment);
+            
+            // 通信システムの更新
+            this.communicationSystem.update(lifeforms);
+        }
+        
+        // メタプログラミングの決定を適用
+        applyMetaDecision(decision) {
+            if (!decision || !decision.action) return;
+            
+            switch (decision.action) {
+                case 'move_to_resource':
+                    // リソースに向かう
+                    if (decision.direction) {
+                        this.acceleration.x += decision.direction.x;
+                        this.acceleration.y += decision.direction.y;
+                        this.acceleration.z += decision.direction.z;
+                    }
+                    
+                    // 成功フィードバック
+                    if (decision.target && this.getDistanceTo(decision.target) < 2.0) {
+                        this.metaprogrammingSystem.provideFeedback('resourceGathering', true);
+                    }
+                    break;
+                    
+                case 'flee':
+                    // 脅威から逃げる
+                    if (decision.direction) {
+                        this.acceleration.x += decision.direction.x * 1.5; // 緊急性を反映
+                        this.acceleration.y += decision.direction.y * 1.5;
+                        this.acceleration.z += decision.direction.z * 1.5;
+                    }
+                    
+                    // 成功フィードバック（脅威との距離が増加した場合）
+                    if (decision.threat && this.getDistanceTo(decision.threat.lifeform) > decision.threat.distance) {
+                        this.metaprogrammingSystem.provideFeedback('predatorAvoidance', true);
+                    }
+                    break;
+                    
+                case 'approach_mate':
+                    // 交配相手に近づく
+                    if (decision.direction) {
+                        this.acceleration.x += decision.direction.x;
+                        this.acceleration.y += decision.direction.y;
+                        this.acceleration.z += decision.direction.z;
+                    }
+                    break;
+                    
+                case 'attempt_mating':
+                    // 交配を試みる
+                    if (decision.target) {
+                        const success = this.attemptMating(decision.target);
+                        this.metaprogrammingSystem.provideFeedback('mating', success);
+                    }
+                    break;
+                    
+                case 'explore':
+                    // 探索行動
+                    if (decision.direction) {
+                        this.acceleration.x += decision.direction.x * 0.8;
+                        this.acceleration.y += decision.direction.y * 0.8;
+                        this.acceleration.z += decision.direction.z * 0.8;
+                    }
+                    
+                    // 新しい領域の探索は成功とみなす（単純化）
+                    if (Math.random() < 0.1) {
+                        this.metaprogrammingSystem.provideFeedback('exploration', true);
+                    }
+                    break;
+                    
+                default:
+                    // その他の行動
+                    break;
+            }
+        }
+        
+        // リソース検出時の処理を拡張
+        detectResources(environment) {
+            // 環境からリソースを検出する処理
+            const resources = [];
+            
+            // 知覚範囲を計算
+            const perceptionRadius = 15 * this.dna.perception;
+            
+            // 環境内のリソースを検索
+            if (environment && environment.resources) {
+                for (const [position, resourceMap] of environment.resources) {
+                    const [x, y] = position.split(',').map(Number);
+                    const dx = x - this.position.x;
+                    const dy = y - this.position.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (distance < perceptionRadius) {
+                        for (const [type, amount] of resourceMap) {
+                            resources.push({
+                                type: type,
+                                position: { x, y, z: 0 },
+                                amount: amount,
+                                distance: distance
+                            });
+                        }
+                    }
+                }
+            }
+            
+            // 発見したリソースを記録
+            if (resources.length > 0) {
+                this.lastFoundResource = {
+                    type: resources[0].type,
+                    x: resources[0].position.x,
+                    y: resources[0].position.y,
+                    z: resources[0].position.z,
+                    amount: resources[0].amount,
+                    time: Date.now()
+                };
+            }
+            
+            return resources;
         }
         
         // 環境ノイズへの適応を更新
@@ -2049,7 +2261,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         
-        updateBehavior(lifeforms) {
+        updateBehavior(lifeforms, environment) {
             // 引数がない場合の対応
             lifeforms = lifeforms || [];
             
@@ -2057,7 +2269,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const currentState = {
                 energy: this.energy,
                 threats: this.detectThreats(lifeforms),
-                resources: this.detectResources(),
+                resources: this.detectResources(environment),
                 companions: this.findCompatibleCompanions(lifeforms)
             };
             
@@ -2292,9 +2504,47 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         // 周囲の資源を検出
-        detectResources() {
-            // 簡易的な実装
-            return [];
+        detectResources(environment) {
+            // 環境からリソースを検出する処理
+            const resources = [];
+            
+            // 知覚範囲を計算
+            const perceptionRadius = 15 * this.dna.perception;
+            
+            // 環境内のリソースを検索
+            if (environment && environment.resources) {
+                for (const [position, resourceMap] of environment.resources) {
+                    const [x, y] = position.split(',').map(Number);
+                    const dx = x - this.position.x;
+                    const dy = y - this.position.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (distance < perceptionRadius) {
+                        for (const [type, amount] of resourceMap) {
+                            resources.push({
+                                type: type,
+                                position: { x, y, z: 0 },
+                                amount: amount,
+                                distance: distance
+                            });
+                        }
+                    }
+                }
+            }
+            
+            // 発見したリソースを記録
+            if (resources.length > 0) {
+                this.lastFoundResource = {
+                    type: resources[0].type,
+                    x: resources[0].position.x,
+                    y: resources[0].position.y,
+                    z: resources[0].position.z,
+                    amount: resources[0].amount,
+                    time: Date.now()
+                };
+            }
+            
+            return resources;
         }
         
         // 互換性のある仲間を探す
@@ -2345,6 +2595,217 @@ document.addEventListener('DOMContentLoaded', () => {
         weakenBehavior() {
             this.dna.cohesionWeight *= 0.99;
             this.dna.alignmentWeight *= 0.99;
+        }
+        
+        applyDecision(decision) {
+            // 認知的決定に基づいて行動を実行
+            switch (decision.action) {
+                case 'avoid_danger':
+                    // 危険回避の行動
+                    break;
+                case 'seek_food':
+                    // 食料探索の行動
+                    break;
+                case 'socialize':
+                    // 社会的交流の行動
+                    break;
+                // その他の行動...
+            }
+        }
+        
+        updateCognitiveAbilities() {
+            // 経験に基づいて認知能力を発達させる
+            for (const level in this.cognition.development) {
+                if (level !== 'reflexes' && level !== 'instincts') {
+                    // 反射と本能以外は経験により発達
+                    const maxDevelopment = this.dna.cognition.learningRate;
+                    if (this.cognition.development[level] < maxDevelopment) {
+                        this.cognition.development[level] += 0.0001;
+                    }
+                }
+            }
+            
+            // 抽象思考能力の上限は DNA に依存
+            if (this.cognition.development.abstractThinking > this.dna.cognition.abstractionCapacity) {
+                this.cognition.development.abstractThinking = this.dna.cognition.abstractionCapacity;
+            }
+            
+            // メタ認知能力の上限は DNA に依存
+            if (this.cognition.development.metacognition > this.dna.cognition.metacognitionAbility) {
+                this.cognition.development.metacognition = this.dna.cognition.metacognitionAbility;
+            }
+        }
+
+        // 他の生命体との遺伝的距離を計算
+        calculateGeneticDistance(other) {
+            if (!other || !other.dna) return 1.0; // 最大距離
+            
+            // 比較する遺伝子特性のリスト
+            const geneKeys = [
+                'speed', 'efficiency', 'perception', 'foodAttraction', 
+                'socialBehavior', 'reproductionRate', 'predatory', 'size',
+                'metaprogrammingAbility', 'learningRate', 'creativity', 'adaptability'
+            ];
+            
+            let totalDifference = 0;
+            let comparedGenes = 0;
+            
+            // 基本的な数値特性の比較
+            for (const key of geneKeys) {
+                if (typeof this.dna[key] === 'number' && typeof other.dna[key] === 'number') {
+                    const diff = Math.abs(this.dna[key] - other.dna[key]);
+                    totalDifference += diff;
+                    comparedGenes++;
+                }
+            }
+            
+            // 光合成能力の比較（もし存在すれば）
+            if (this.dna.photosynthesis && other.dna.photosynthesis) {
+                if (typeof this.dna.photosynthesis.efficiency === 'number' && 
+                    typeof other.dna.photosynthesis.efficiency === 'number') {
+                    const diff = Math.abs(this.dna.photosynthesis.efficiency - other.dna.photosynthesis.efficiency);
+                    totalDifference += diff;
+                    comparedGenes++;
+                }
+            }
+            
+            // 捕食者/被食者の互換性
+            if (this.isPredator !== other.isPredator) {
+                totalDifference += 1.0; // 捕食者と非捕食者は大きな遺伝的距離
+                comparedGenes++;
+            }
+            
+            // 平均差異を計算（0〜1の範囲）
+            const averageDifference = comparedGenes > 0 ? totalDifference / comparedGenes : 1.0;
+            
+            // 同種族かどうかの判定に使用できる遺伝的距離を返す
+            return Math.min(1.0, averageDifference);
+        }
+
+        // 創造的な問題解決プロセス
+        solveProblemCreatively(problem) {
+            // 問題の分析
+            const analysis = this.analyzeProblem(problem);
+            
+            // 既存の解決策の検索
+            const existingSolution = this.findExistingSolution(analysis);
+            if (existingSolution && this.isValidSolution(existingSolution, problem)) {
+                return this.adaptExistingSolution(existingSolution, problem);
+            }
+
+            // 新しい解決策の生成
+            return this.generateNewSolution(analysis, problem);
+        }
+
+        // 問題の分析
+        analyzeProblem(problem) {
+            return {
+                type: this.classifyProblem(problem),
+                components: this.decomposeProblem(problem),
+                constraints: this.identifyConstraints(problem),
+                resources: this.assessAvailableResources(),
+                context: this.analyzeContext()
+            };
+        }
+
+        // 新しい解決策の生成
+        generateNewSolution(analysis, problem) {
+            const solution = {
+                steps: [],
+                resources: new Map(),
+                expectedOutcome: null,
+                adaptability: 0
+            };
+
+            // パターン合成による新しいアプローチの生成
+            const patterns = this.cognition.synthesizePatterns(analysis);
+            
+            // 各パターンに基づく解決ステップの生成
+            for (const pattern of patterns) {
+                const step = this.createSolutionStep(pattern, analysis);
+                if (this.isStepValid(step, solution)) {
+                    solution.steps.push(step);
+                }
+            }
+
+            // 解決策の評価と最適化
+            solution.expectedOutcome = this.evaluateSolution(solution, problem);
+            solution.adaptability = this.calculateAdaptability(solution);
+
+            // 創造性システムの更新
+            this.updateCreativitySystem(solution, problem);
+
+            return solution;
+        }
+
+        // 解決策の実装と評価
+        implementSolution(solution) {
+            const implementation = {
+                success: false,
+                steps: [],
+                feedback: []
+            };
+
+            // 各ステップの実装
+            for (const step of solution.steps) {
+                const result = this.executeStep(step);
+                implementation.steps.push(result);
+
+                // フィードバックの収集
+                implementation.feedback.push(this.collectFeedback(result));
+
+                // 必要に応じて適応的調整
+                if (!result.success) {
+                    const adjustment = this.adjustStrategy(step, result);
+                    if (adjustment) {
+                        implementation.steps.push(this.executeStep(adjustment));
+                    }
+                }
+            }
+
+            // 実装結果の評価
+            implementation.success = this.evaluateImplementation(implementation);
+
+            // 学習と適応
+            this.learnFromImplementation(implementation);
+
+            return implementation;
+        }
+
+        // 創造性システムの更新
+        updateCreativitySystem(solution, problem) {
+            // 新しい革新的アプローチの追加
+            if (this.isInnovative(solution)) {
+                this.creativitySystem.innovationPool.add(this.extractInnovation(solution));
+            }
+
+            // 問題解決履歴の更新
+            this.creativitySystem.problemSolvingHistory.push({
+                problem: problem,
+                solution: solution,
+                timestamp: Date.now()
+            });
+
+            // 適応戦略の更新
+            if (solution.adaptability > this.getAverageAdaptability()) {
+                this.creativitySystem.adaptiveStrategies.set(
+                    this.classifyProblem(problem),
+                    this.extractStrategy(solution)
+                );
+            }
+
+            // 古いデータの整理
+            this.cleanupCreativitySystem();
+        }
+
+        // 創造性メトリクスの計算
+        calculateCreativityMetrics() {
+            return {
+                innovationRate: this.calculateInnovationRate(),
+                adaptabilityScore: this.calculateAdaptabilityScore(),
+                problemSolvingEfficiency: this.calculateProblemSolvingEfficiency(),
+                patternRecognitionAccuracy: this.calculatePatternRecognitionAccuracy()
+            };
         }
     }
     
@@ -2847,6 +3308,84 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => {
             requestAnimationFrame(render);
         }, 1000 / 10); // 30FPSに制限
+        
+        // 生命体の描画
+        for (let i = 0; i < lifeforms.length; i++) {
+            const lifeform = lifeforms[i];
+            
+            // メタプログラミング能力の視覚化
+            if (lifeform.metaprogrammingSystem) {
+                // メタプログラミング能力が高い生命体は特別な輝きを持つ
+                const metaAbility = lifeform.dna.metaprogrammingAbility || 0;
+                if (metaAbility > 0.7) {
+                    // 高度なメタプログラミング能力を持つ生命体は特別なパターンで表示
+                    const patternChar = '⚙'; // 歯車マーク
+                    const x = Math.floor(lifeform.position.x);
+                    const y = Math.floor(lifeform.position.y);
+                    
+                    if (x >= 0 && x < width && y >= 0 && y < height) {
+                        // 生命体の周囲にパターンを描画
+                        const patternRadius = 1;
+                        for (let px = -patternRadius; px <= patternRadius; px++) {
+                            for (let py = -patternRadius; py <= patternRadius; py++) {
+                                const patternX = x + px;
+                                const patternY = y + py;
+                                
+                                if (patternX >= 0 && patternX < width && patternY >= 0 && patternY < height &&
+                                    (px !== 0 || py !== 0) && // 中心は除外
+                                    Math.random() < metaAbility * 0.3) { // 確率で表示
+                                    
+                                    // 深度に基づいて表示するかどうか判断
+                                    const patternZ = lifeform.position.z + (Math.random() - 0.5) * 2;
+                                    if (patternZ > zBuffer[patternY][patternX]) {
+                                        // パターンを描画
+                                        const patternColor = getColor(lifeform);
+                                        patternColor.s = 0.8; // 彩度を上げる
+                                        patternColor.l = 0.7; // 明度を上げる
+                                        
+                                        // 最適化中のアルゴリズムがある場合は色を変える
+                                        if (lifeform.metaprogrammingSystem.currentOptimizationTarget) {
+                                            patternColor.h = (patternColor.h + 180) % 360; // 補色
+                                        }
+                                        
+                                        const patternRgb = hslToRgb(patternColor);
+                                        const patternStyle = `color: rgb(${patternRgb.r}, ${patternRgb.g}, ${patternRgb.b})`;
+                                        
+                                        display[patternY][patternX] = {
+                                            char: patternChar,
+                                            style: patternStyle,
+                                            z: patternZ
+                                        };
+                                        
+                                        zBuffer[patternY][patternX] = patternZ;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // 最適化履歴の分析
+                const optimizationHistory = lifeform.metaprogrammingSystem.optimizationHistory;
+                if (optimizationHistory.length > 0) {
+                    // 最近の最適化を取得
+                    const recentOptimizations = optimizationHistory.slice(-5);
+                    
+                    // 最適化の成功率を計算
+                    const successfulOptimizations = recentOptimizations.filter(opt => 
+                        opt.successRate > 0.6
+                    ).length;
+                    
+                    const optimizationSuccessRate = successfulOptimizations / Math.max(1, recentOptimizations.length);
+                    
+                    // 成功率が高い場合は生命体の色を少し変える
+                    if (optimizationSuccessRate > 0.7) {
+                        // 色相を少し変える
+                        lifeform.baseHue = (lifeform.baseHue + 10) % 360;
+                    }
+                }
+            }
+        }
     }
     
     // HSL色をRGBに変換するヘルパー関数
@@ -3350,6 +3889,2264 @@ class EvolutionaryLearning {
             fitness: fitness
         });
         return fitness;
+    }
+} 
+
+class CognitiveHierarchy {
+    constructor() {
+        // 各レベルの活性化状態
+        this.levels = {
+            reflexes: { active: true, priority: 1.0 },
+            instincts: { active: true, priority: 0.9 },
+            learnedBehaviors: { active: true, priority: 0.8 },
+            tacticalThinking: { active: true, priority: 0.7 },
+            strategicThinking: { active: true, priority: 0.6 },
+            socialThinking: { active: true, priority: 0.5 },
+            abstractThinking: { active: true, priority: 0.4 },
+            metacognition: { active: true, priority: 0.3 }
+        };
+        
+        // 各レベルのエネルギーコスト
+        this.energyCosts = {
+            reflexes: 0.001,
+            instincts: 0.002,
+            learnedBehaviors: 0.005,
+            tacticalThinking: 0.01,
+            strategicThinking: 0.02,
+            socialThinking: 0.03,
+            abstractThinking: 0.04,
+            metacognition: 0.05
+        };
+        
+        // 各レベルの発達度
+        this.development = {
+            reflexes: 1.0,  // 反射は生まれつき完全に発達
+            instincts: 0.8, // 本能もほぼ発達
+            learnedBehaviors: 0.2, // 学習行動は経験により発達
+            tacticalThinking: 0.1,
+            strategicThinking: 0.05,
+            socialThinking: 0.1,
+            abstractThinking: 0.02,
+            metacognition: 0.01
+        };
+        
+        // 思考の履歴
+        this.thoughtHistory = [];
+        
+        // 創発的特性の追跡
+        this.emergentProperties = {
+            creativity: 0,
+            adaptability: 0,
+            consciousness: 0
+        };
+
+        // パターン認識と創造性に関する新しいプロパティ
+        this.patternMemory = {
+            environmental: new Map(),
+            behavioral: new Map(),
+            social: new Map()
+        };
+        
+        this.creativityMetrics = {
+            novelty: 0,
+            flexibility: 0,
+            elaboration: 0,
+            originality: 0
+        };
+        
+        this.problemSolvingState = {
+            currentProblem: null,
+            attemptedSolutions: [],
+            successfulStrategies: new Map()
+        };
+    }
+    
+    // 各レベルの思考プロセスを実行
+    process(lifeform, environment, others) {
+        const results = {};
+        let totalInfluence = 0;
+        
+        // エネルギーが少ない場合は高次の思考を制限
+        this.adjustActiveLevels(lifeform.energy);
+        
+        // 各レベルの処理を実行
+        if (this.levels.reflexes.active) {
+            results.reflexes = this.processReflexes(lifeform, environment);
+            totalInfluence += results.reflexes.influence * this.levels.reflexes.priority;
+            lifeform.energy -= this.energyCosts.reflexes;
+        }
+        
+        if (this.levels.instincts.active) {
+            results.instincts = this.processInstincts(lifeform, environment);
+            totalInfluence += results.instincts.influence * this.levels.instincts.priority;
+            lifeform.energy -= this.energyCosts.instincts;
+        }
+        
+        // 以下同様に各レベルの処理を実行...
+        
+        // 思考履歴に追加
+        this.thoughtHistory.push({
+            time: Date.now(),
+            results: results,
+            energy: lifeform.energy
+        });
+        
+        // 履歴が長すぎる場合は古いものを削除
+        if (this.thoughtHistory.length > 100) {
+            this.thoughtHistory.shift();
+        }
+        
+        // 創発的特性の更新
+        this.updateEmergentProperties();
+        
+        return this.integrateResults(results, totalInfluence);
+    }
+    
+    // エネルギーレベルに応じて活性化するレベルを調整
+    adjustActiveLevels(energy) {
+        // エネルギーが少ない場合は高次の思考を無効化
+        this.levels.metacognition.active = energy > 0.7;
+        this.levels.abstractThinking.active = energy > 0.6;
+        this.levels.socialThinking.active = energy > 0.5;
+        this.levels.strategicThinking.active = energy > 0.4;
+        this.levels.tacticalThinking.active = energy > 0.3;
+        // 基本的な機能は常に活性化
+        this.levels.learnedBehaviors.active = energy > 0.2;
+        this.levels.instincts.active = energy > 0.1;
+        this.levels.reflexes.active = true; // 反射は常に活性化
+    }
+    
+    // 各思考レベルの処理メソッド
+    processReflexes(lifeform, environment) {
+        // 即時的な反応を処理
+        // 例: 危険からの回避、光への反応など
+        return { influence: 0.5, action: 'avoid_danger' };
+    }
+    
+    processInstincts(lifeform, environment) {
+        // 本能的な行動を処理
+        // 例: 食料探索、繁殖行動など
+        return { influence: 0.6, action: 'seek_food' };
+    }
+    
+    // 他のレベルの処理メソッドも同様に実装...
+    
+    // 創発的特性の更新
+    updateEmergentProperties() {
+        // 思考履歴から創発的特性を計算
+        
+        // 創造性: 新しい行動パターンの発見
+        this.emergentProperties.creativity = this.calculateCreativity();
+        
+        // 適応性: 環境変化への対応能力
+        this.emergentProperties.adaptability = this.calculateAdaptability();
+        
+        // 意識: 自己認識と環境認識の度合い
+        this.emergentProperties.consciousness = this.calculateConsciousness();
+    }
+    
+    // 各創発的特性の計算メソッド
+    calculateCreativity() {
+        // 思考履歴から新しい行動パターンの多様性を計算
+        // 実装例: 行動の多様性指数を計算
+        return 0.5; // 仮の値
+    }
+    
+    calculateAdaptability() {
+        // 環境変化に対する適応度を計算
+        return 0.5; // 仮の値
+    }
+    
+    calculateConsciousness() {
+        // 自己認識と環境認識の度合いを計算
+        // メタ認知の活性度と相関
+        return this.levels.metacognition.active ? 0.8 : 0.2;
+    }
+    
+    // 各レベルの結果を統合
+    integrateResults(results, totalInfluence) {
+        // 各レベルの結果を統合して最終的な行動決定を行う
+        const finalDecision = {
+            action: null,
+            confidence: 0
+        };
+        
+        // 影響度の高い行動を選択
+        for (const [level, result] of Object.entries(results)) {
+            const weight = result.influence * this.levels[level].priority / totalInfluence;
+            if (weight > finalDecision.confidence) {
+                finalDecision.action = result.action;
+                finalDecision.confidence = weight;
+            }
+        }
+        
+        return finalDecision;
+    }
+
+    // パターン認識と学習
+    recognizeAndLearnPatterns(environment, behavior, outcome) {
+        // 環境パターンの認識
+        const envPattern = this.extractEnvironmentalPattern(environment);
+        this.updatePatternMemory('environmental', envPattern, outcome);
+
+        // 行動パターンの認識
+        const behavPattern = this.extractBehavioralPattern(behavior);
+        this.updatePatternMemory('behavioral', behavPattern, outcome);
+
+        // パターンの関連付けと学習
+        this.correlatePatterns();
+    }
+
+    // 創造的問題解決
+    generateCreativeSolution(problem) {
+        this.problemSolvingState.currentProblem = problem;
+
+        // 既存の成功戦略の検索
+        const existingStrategy = this.findSimilarStrategy(problem);
+        if (existingStrategy) {
+            // 既存戦略の適応的修正
+            return this.adaptExistingStrategy(existingStrategy, problem);
+        }
+
+        // 新しい解決策の生成
+        return this.synthesizeNewSolution(problem);
+    }
+
+    // パターンメモリの更新
+    updatePatternMemory(type, pattern, outcome) {
+        const memory = this.patternMemory[type];
+        const patternKey = JSON.stringify(pattern);
+
+        if (!memory.has(patternKey)) {
+            memory.set(patternKey, {
+                frequency: 1,
+                outcomes: [outcome],
+                averageSuccess: outcome.success
+            });
+        } else {
+            const data = memory.get(patternKey);
+            data.frequency++;
+            data.outcomes.push(outcome);
+            data.averageSuccess = data.outcomes.reduce((sum, o) => sum + o.success, 0) / data.outcomes.length;
+            
+            // メモリ管理（最新の100個の結果のみ保持）
+            if (data.outcomes.length > 100) {
+                data.outcomes.shift();
+            }
+        }
+    }
+
+    // 新しい解決策の合成
+    synthesizeNewSolution(problem) {
+        const solution = {
+            approach: [],
+            expectedOutcome: null,
+            confidence: 0
+        };
+
+        // 問題の分解
+        const subProblems = this.decomposeProblem(problem);
+
+        // 各サブ問題に対する解決策の生成
+        for (const subProblem of subProblems) {
+            const subSolution = this.generateSubSolution(subProblem);
+            solution.approach.push(subSolution);
+        }
+
+        // 解決策の統合と評価
+        solution.expectedOutcome = this.evaluateSolution(solution);
+        solution.confidence = this.calculateSolutionConfidence(solution);
+
+        // 創造性メトリクスの更新
+        this.updateCreativityMetrics(solution);
+
+        return solution;
+    }
+
+    // 問題の分解
+    decomposeProblem(problem) {
+        return [
+            { type: 'resource', aspect: problem.resourceNeeds },
+            { type: 'safety', aspect: problem.threats },
+            { type: 'social', aspect: problem.socialContext }
+        ].filter(sub => sub.aspect !== null);
+    }
+
+    // 創造性メトリクスの更新
+    updateCreativityMetrics(solution) {
+        // 新規性の評価
+        this.creativityMetrics.novelty = this.evaluateNovelty(solution);
+        
+        // 柔軟性の評価
+        this.creativityMetrics.flexibility = this.evaluateFlexibility(solution);
+        
+        // 精緻化の評価
+        this.creativityMetrics.elaboration = this.evaluateElaboration(solution);
+        
+        // 独創性の評価
+        this.creativityMetrics.originality = this.evaluateOriginality(solution);
+    }
+
+    // 解決策の評価
+    evaluateSolution(solution) {
+        return {
+            expectedSuccess: this.calculateExpectedSuccess(solution),
+            resourceCost: this.calculateResourceCost(solution),
+            riskLevel: this.calculateRiskLevel(solution),
+            adaptabilityScore: this.calculateAdaptabilityScore(solution)
+        };
+    }
+} 
+
+class DNARepairSystem {
+    constructor(lifeform) {
+        this.lifeform = lifeform;
+        this.errorDetectionRate = lifeform.dna.errorDetection || 0.6; // エラー検出能力
+        this.repairEfficiency = lifeform.dna.repairEfficiency || 0.7; // 修復効率
+        this.energyCost = 0.01; // 修復のエネルギーコスト
+        this.errorLog = []; // 検出されたエラーのログ
+        this.repairHistory = []; // 修復履歴
+        this.checksumTable = new Map(); // 遺伝子のチェックサム
+        
+        // 初期チェックサムの計算
+        this.calculateChecksums();
+    }
+    
+    // 遺伝子のチェックサムを計算
+    calculateChecksums() {
+        for (const [gene, value] of Object.entries(this.lifeform.dna)) {
+            if (typeof value === 'number') {
+                // 単純な数値のチェックサム
+                this.checksumTable.set(gene, this.calculateChecksum(value));
+            } else if (typeof value === 'object' && value !== null) {
+                // ネストされたオブジェクトの場合は再帰的に処理
+                this.calculateNestedChecksums(gene, value);
+            }
+        }
+    }
+    
+    // ネストされたオブジェクトのチェックサムを計算
+    calculateNestedChecksums(prefix, obj) {
+        for (const [key, value] of Object.entries(obj)) {
+            const fullKey = `${prefix}.${key}`;
+            if (typeof value === 'number') {
+                this.checksumTable.set(fullKey, this.calculateChecksum(value));
+            } else if (typeof value === 'object' && value !== null) {
+                this.calculateNestedChecksums(fullKey, value);
+            }
+        }
+    }
+    
+    // 単純なチェックサム計算（例：値を10倍して小数点以下を切り捨て、各桁の和を計算）
+    calculateChecksum(value) {
+        const scaled = Math.floor(value * 10);
+        let sum = 0;
+        let num = scaled;
+        while (num > 0) {
+            sum += num % 10;
+            num = Math.floor(num / 10);
+        }
+        return sum;
+    }
+    
+    // DNAのエラーを検出
+    detectErrors() {
+        const detectedErrors = [];
+        
+        // チェックサムを使ってエラーを検出
+        for (const [gene, originalChecksum] of this.checksumTable.entries()) {
+            // 遺伝子パスを解析
+            const genePath = gene.split('.');
+            let target = this.lifeform.dna;
+            let valid = true;
+            
+            for (let i = 0; i < genePath.length - 1; i++) {
+                if (target[genePath[i]]) {
+                    target = target[genePath[i]];
+                } else {
+                    valid = false;
+                    break;
+                }
+            }
+            
+            const finalGene = genePath[genePath.length - 1];
+            if (valid && target[finalGene] !== undefined) {
+                const currentValue = target[finalGene];
+                const currentChecksum = this.calculateChecksum(currentValue);
+                
+                // チェックサムが一致しない場合はエラー
+                if (currentChecksum !== originalChecksum) {
+                    // エラー検出率に基づいて検出
+                    if (Math.random() < this.errorDetectionRate) {
+                        detectedErrors.push({
+                            gene: gene,
+                            originalChecksum: originalChecksum,
+                            currentChecksum: currentChecksum,
+                            currentValue: currentValue
+                        });
+                    }
+                }
+            }
+        }
+        
+        this.errorLog = [...this.errorLog, ...detectedErrors];
+        return detectedErrors;
+    }
+    
+    // 検出されたエラーを修復
+    repairErrors() {
+        if (this.errorLog.length === 0) return 0;
+        
+        let repairedCount = 0;
+        const remainingErrors = [];
+        
+        for (const error of this.errorLog) {
+            // 修復効率に基づいて修復を試みる
+            if (Math.random() < this.repairEfficiency) {
+                // 遺伝子パスを解析
+                const genePath = error.gene.split('.');
+                let target = this.lifeform.dna;
+                let valid = true;
+                
+                for (let i = 0; i < genePath.length - 1; i++) {
+                    if (target[genePath[i]]) {
+                        target = target[genePath[i]];
+                    } else {
+                        valid = false;
+                        break;
+                    }
+                }
+                
+                const finalGene = genePath[genePath.length - 1];
+                if (valid && target[finalGene] !== undefined) {
+                    // 値を調整して正しいチェックサムに近づける
+                    let bestValue = target[finalGene];
+                    let bestDiff = Math.abs(this.calculateChecksum(bestValue) - error.originalChecksum);
+                    
+                    // 値を少しずつ変えてチェックサムが合う値を探す
+                    for (let i = 0; i < 20; i++) {
+                        const testValue = target[finalGene] * (1 + (Math.random() - 0.5) * 0.1);
+                        const testChecksum = this.calculateChecksum(testValue);
+                        const diff = Math.abs(testChecksum - error.originalChecksum);
+                        
+                        if (diff < bestDiff) {
+                            bestValue = testValue;
+                            bestDiff = diff;
+                            
+                            // 完全に一致したら終了
+                            if (diff === 0) break;
+                        }
+                    }
+                    
+                    // 修復を適用
+                    target[finalGene] = bestValue;
+                    
+                    // 修復履歴に追加
+                    this.repairHistory.push({
+                        time: Date.now(),
+                        gene: error.gene,
+                        from: error.currentValue,
+                        to: bestValue
+                    });
+                    
+                    repairedCount++;
+                    
+                    // エネルギーコストを適用
+                    this.lifeform.energy -= this.energyCost;
+                } else {
+                    remainingErrors.push(error);
+                }
+            } else {
+                remainingErrors.push(error);
+            }
+        }
+        
+        // 修復できなかったエラーを保持
+        this.errorLog = remainingErrors;
+        
+        return repairedCount;
+    }
+    
+    // 定期的なDNA整合性チェックと修復
+    update() {
+        // エラー検出
+        const errors = this.detectErrors();
+        
+        // エラーがあれば修復を試みる
+        if (errors.length > 0) {
+            const repairedCount = this.repairErrors();
+            
+            // 修復後にチェックサムを更新
+            if (repairedCount > 0) {
+                this.calculateChecksums();
+            }
+            
+            return {
+                detected: errors.length,
+                repaired: repairedCount
+            };
+        }
+        
+        return {
+            detected: 0,
+            repaired: 0
+        };
+    }
+}
+
+class CommunicationSystem {
+    constructor(lifeform) {
+        this.lifeform = lifeform;
+        this.messageQueue = []; // 送信待ちメッセージ
+        this.receivedMessages = []; // 受信したメッセージ
+        this.knownPeers = new Map(); // 通信相手の記録
+        this.communicationRange = 5 + lifeform.dna.perception * 5; // 通信範囲
+        this.bandwidth = lifeform.dna.communicationBandwidth || 0.5; // 通信帯域幅
+        this.reliability = lifeform.dna.communicationReliability || 0.7; // 通信信頼性
+        this.energyCostPerMessage = 0.005; // メッセージ送信のエネルギーコスト
+        
+        // メッセージタイプ
+        this.MESSAGE_TYPES = {
+            RESOURCE_LOCATION: 'resource_location',
+            THREAT_WARNING: 'threat_warning',
+            MATING_REQUEST: 'mating_request',
+            COOPERATION_OFFER: 'cooperation_offer',
+            TERRITORY_CLAIM: 'territory_claim',
+            KNOWLEDGE_SHARE: 'knowledge_share'
+        };
+    }
+    
+    // メッセージを送信キューに追加
+    queueMessage(type, data, targetId = null) {
+        // エネルギーが足りない場合は送信しない
+        if (this.lifeform.energy < this.energyCostPerMessage) return false;
+        
+        const message = {
+            id: Math.random().toString(36).substr(2, 9), // ユニークID
+            type: type,
+            data: data,
+            senderId: this.lifeform.id,
+            targetId: targetId, // null の場合はブロードキャスト
+            timestamp: Date.now(),
+            ttl: 3 // Time To Live
+        };
+        
+        this.messageQueue.push(message);
+        return true;
+    }
+    
+    // メッセージを送信（実際の通信処理）
+    transmitMessages(lifeforms) {
+        if (this.messageQueue.length === 0) return;
+        
+        const messagesToSend = this.messageQueue.splice(0, Math.ceil(this.bandwidth * 5)); // 帯域幅に基づいて送信数を制限
+        
+        for (const message of messagesToSend) {
+            // エネルギーコストを適用
+            this.lifeform.energy -= this.energyCostPerMessage;
+            
+            // 通信範囲内の生命体にメッセージを送信
+            for (const other of lifeforms) {
+                if (other === this.lifeform || other.isDead) continue;
+                
+                // ターゲットが指定されている場合は、そのターゲットにのみ送信
+                if (message.targetId && message.targetId !== other.id) continue;
+                
+                const distance = this.lifeform.getDistanceTo(other);
+                
+                if (distance <= this.communicationRange) {
+                    // 距離に基づいて信頼性を調整
+                    const distanceReliability = 1 - (distance / this.communicationRange);
+                    const effectiveReliability = this.reliability * distanceReliability;
+                    
+                    // 信頼性に基づいて送信成功を判定
+                    if (Math.random() < effectiveReliability) {
+                        // メッセージを相手の受信キューに追加
+                        other.communicationSystem.receiveMessage({
+                            ...message,
+                            ttl: message.ttl - 1
+                        });
+                        
+                        // 通信相手を記録
+                        this.knownPeers.set(other.id, {
+                            lastContact: Date.now(),
+                            reliability: (this.knownPeers.get(other.id)?.reliability || 0) * 0.9 + 0.1 * effectiveReliability
+                        });
+                    }
+                }
+            }
+        }
+    }
+    
+    // メッセージを受信
+    receiveMessage(message) {
+        // TTLが0以下のメッセージは破棄
+        if (message.ttl <= 0) return;
+        
+        // 送信者を記録
+        if (message.senderId !== this.lifeform.id) {
+            this.knownPeers.set(message.senderId, {
+                lastContact: Date.now(),
+                reliability: (this.knownPeers.get(message.senderId)?.reliability || 0.5)
+            });
+        }
+        
+        // 受信メッセージを処理
+        this.receivedMessages.push(message);
+        
+        // 受信キューが大きすぎる場合は古いメッセージを削除
+        if (this.receivedMessages.length > 20) {
+            this.receivedMessages.shift();
+        }
+    }
+    
+    // 受信したメッセージを処理
+    processMessages() {
+        if (this.receivedMessages.length === 0) return;
+        
+        const processedMessages = [];
+        
+        for (const message of this.receivedMessages) {
+            switch (message.type) {
+                case this.MESSAGE_TYPES.RESOURCE_LOCATION:
+                    this.processResourceLocationMessage(message);
+                    break;
+                case this.MESSAGE_TYPES.THREAT_WARNING:
+                    this.processThreatWarningMessage(message);
+                    break;
+                case this.MESSAGE_TYPES.MATING_REQUEST:
+                    this.processMatingRequestMessage(message);
+                    break;
+                case this.MESSAGE_TYPES.COOPERATION_OFFER:
+                    this.processCooperationOfferMessage(message);
+                    break;
+                case this.MESSAGE_TYPES.TERRITORY_CLAIM:
+                    this.processTerritoryClaimMessage(message);
+                    break;
+                case this.MESSAGE_TYPES.KNOWLEDGE_SHARE:
+                    this.processKnowledgeShareMessage(message);
+                    break;
+            }
+            
+            processedMessages.push(message);
+        }
+        
+        // 処理済みメッセージを削除
+        this.receivedMessages = this.receivedMessages.filter(msg => !processedMessages.includes(msg));
+    }
+    
+    // リソース位置メッセージの処理
+    processResourceLocationMessage(message) {
+        // リソース位置情報を記憶
+        if (!this.lifeform.memory) this.lifeform.memory = {};
+        if (!this.lifeform.memory.resourceLocations) this.lifeform.memory.resourceLocations = [];
+        
+        // 既存の情報を更新または新規追加
+        const existingIndex = this.lifeform.memory.resourceLocations.findIndex(
+            loc => loc.x === message.data.x && loc.y === message.data.y
+        );
+        
+        if (existingIndex >= 0) {
+            this.lifeform.memory.resourceLocations[existingIndex] = {
+                ...message.data,
+                timestamp: Date.now(),
+                reliability: this.knownPeers.get(message.senderId)?.reliability || 0.5
+            };
+        } else {
+            this.lifeform.memory.resourceLocations.push({
+                ...message.data,
+                timestamp: Date.now(),
+                reliability: this.knownPeers.get(message.senderId)?.reliability || 0.5
+            });
+        }
+        
+        // 古い情報を削除
+        const MAX_AGE = 1000 * 60; // 1分
+        this.lifeform.memory.resourceLocations = this.lifeform.memory.resourceLocations.filter(
+            loc => Date.now() - loc.timestamp < MAX_AGE
+        );
+    }
+    
+    // 脅威警告メッセージの処理
+    processThreatWarningMessage(message) {
+        // 脅威情報を記憶
+        if (!this.lifeform.memory) this.lifeform.memory = {};
+        if (!this.lifeform.memory.threats) this.lifeform.memory.threats = [];
+        
+        this.lifeform.memory.threats.push({
+            ...message.data,
+            timestamp: Date.now(),
+            reliability: this.knownPeers.get(message.senderId)?.reliability || 0.5
+        });
+        
+        // 古い情報を削除
+        const MAX_AGE = 1000 * 30; // 30秒
+        this.lifeform.memory.threats = this.lifeform.memory.threats.filter(
+            threat => Date.now() - threat.timestamp < MAX_AGE
+        );
+        
+        // 脅威に対する即時反応（一時的な行動修正）
+        if (this.knownPeers.get(message.senderId)?.reliability > 0.7) {
+            // 信頼性の高い送信者からの警告は即座に反応
+            const threatDirection = {
+                x: message.data.x - this.lifeform.position.x,
+                y: message.data.y - this.lifeform.position.y,
+                z: message.data.z - this.lifeform.position.z
+            };
+            
+            // 脅威から逃げる方向に一時的な加速を適用
+            const magnitude = 0.1;
+            this.lifeform.acceleration.x -= threatDirection.x * magnitude;
+            this.lifeform.acceleration.y -= threatDirection.y * magnitude;
+            this.lifeform.acceleration.z -= threatDirection.z * magnitude;
+        }
+    }
+    
+    // その他のメッセージ処理メソッド...
+    
+    // 知識共有メッセージの処理
+    processKnowledgeShareMessage(message) {
+        // 共有された知識を学習
+        if (message.data.behaviorWeights) {
+            // 行動重みの学習
+            for (const [behavior, weight] of Object.entries(message.data.behaviorWeights)) {
+                if (this.lifeform.behaviorWeights && this.lifeform.behaviorWeights[behavior] !== undefined) {
+                    // 既存の重みと共有された重みを混合
+                    const reliability = this.knownPeers.get(message.senderId)?.reliability || 0.5;
+                    this.lifeform.behaviorWeights[behavior] = 
+                        this.lifeform.behaviorWeights[behavior] * (1 - reliability * 0.2) + 
+                        weight * reliability * 0.2;
+                }
+            }
+        }
+        
+        // 環境知識の共有
+        if (message.data.environmentalKnowledge) {
+            if (!this.lifeform.memory) this.lifeform.memory = {};
+            if (!this.lifeform.memory.environmentalKnowledge) this.lifeform.memory.environmentalKnowledge = {};
+            
+            // 環境知識を更新
+            for (const [key, value] of Object.entries(message.data.environmentalKnowledge)) {
+                if (!this.lifeform.memory.environmentalKnowledge[key]) {
+                    this.lifeform.memory.environmentalKnowledge[key] = value;
+                } else {
+                    // 既存の知識と新しい知識を混合
+                    const reliability = this.knownPeers.get(message.senderId)?.reliability || 0.5;
+                    this.lifeform.memory.environmentalKnowledge[key] = 
+                        this.lifeform.memory.environmentalKnowledge[key] * (1 - reliability * 0.3) + 
+                        value * reliability * 0.3;
+                }
+            }
+        }
+    }
+    
+    // 定期的な情報共有
+    shareKnowledge(lifeforms) {
+        // エネルギーが少ない場合は共有しない
+        if (this.lifeform.energy < 0.3) return;
+        
+        // 共有する知識を準備
+        const knowledgeToShare = {
+            behaviorWeights: this.lifeform.behaviorWeights,
+            environmentalKnowledge: this.lifeform.memory?.environmentalKnowledge || {}
+        };
+        
+        // 近くの生命体に知識を共有
+        this.queueMessage(
+            this.MESSAGE_TYPES.KNOWLEDGE_SHARE,
+            knowledgeToShare
+        );
+    }
+    
+    // 通信システムの更新
+    update(lifeforms) {
+        // メッセージの送信
+        this.transmitMessages(lifeforms);
+        
+        // メッセージの処理
+        this.processMessages();
+        
+        // 定期的な情報共有（低確率で実行）
+        if (Math.random() < 0.02) {
+            this.shareKnowledge(lifeforms);
+        }
+        
+        // リソース発見時の共有
+        if (this.lifeform.lastFoundResource && Date.now() - this.lifeform.lastFoundResource.time < 1000) {
+            this.queueMessage(
+                this.MESSAGE_TYPES.RESOURCE_LOCATION,
+                {
+                    type: this.lifeform.lastFoundResource.type,
+                    x: this.lifeform.lastFoundResource.x,
+                    y: this.lifeform.lastFoundResource.y,
+                    z: this.lifeform.lastFoundResource.z,
+                    amount: this.lifeform.lastFoundResource.amount
+                }
+            );
+        }
+        
+        // 脅威検出時の警告
+        const threats = this.lifeform.detectThreats(lifeforms);
+        if (threats.length > 0) {
+            for (const threat of threats) {
+                this.queueMessage(
+                    this.MESSAGE_TYPES.THREAT_WARNING,
+                    {
+                        x: threat.lifeform.position.x,
+                        y: threat.lifeform.position.y,
+                        z: threat.lifeform.position.z,
+                        type: threat.lifeform.isPredator ? 'predator' : 'competitor',
+                        severity: threat.lifeform.energy
+                    }
+                );
+            }
+        }
+    }
+}
+
+class MetaprogrammingSystem {
+    constructor(lifeform) {
+        this.lifeform = lifeform;
+        this.algorithms = {
+            resourceGathering: this.createDefaultResourceGatheringAlgorithm(),
+            predatorAvoidance: this.createDefaultPredatorAvoidanceAlgorithm(),
+            mating: this.createDefaultMatingAlgorithm(),
+            exploration: this.createDefaultExplorationAlgorithm()
+        };
+        
+        this.performanceMetrics = {
+            resourceGathering: { success: 0, attempts: 0 },
+            predatorAvoidance: { success: 0, attempts: 0 },
+            mating: { success: 0, attempts: 0 },
+            exploration: { success: 0, attempts: 0 }
+        };
+        
+        this.optimizationHistory = [];
+        this.currentOptimizationTarget = null;
+        this.optimizationCooldown = 0;
+        
+        // メタプログラミング能力
+        this.metaprogrammingAbility = lifeform.dna.metaprogrammingAbility || 0.3;
+        this.learningRate = lifeform.dna.learningRate || 0.2;
+        this.creativityFactor = lifeform.dna.creativity || 0.4;
+
+        // 創造的問題解決のための新しいプロパティ
+        this.problemSolvingCapabilities = {
+            patternRecognition: lifeform.dna.cognition.patternRecognition || 0.3,
+            innovationRate: lifeform.dna.cognition.innovationRate || 0.2,
+            adaptiveThreshold: 0.4,
+            lastInnovation: null
+        };
+
+        // アルゴリズム進化の履歴
+        this.algorithmEvolution = new Map();
+        this.learningMechanism = this.createLearningMechanism();
+
+        // パターン認識システムの初期化を修正
+        this.patternMatchingSystem = {
+            patterns: new Map(),
+            findMatch: function(pattern) {
+                // パターンがnullまたはundefinedの場合は早期リターン
+                if (!pattern) return null;
+                
+                // パターンを安全にシリアライズ可能な形式に変換
+                const safePattern = this.sanitizePattern(pattern);
+                // safePatternがnullの場合も早期リターン
+                if (!safePattern) return null;
+                
+                const key = JSON.stringify(safePattern);
+                return this.patterns.get(key) || null;
+            }.bind(this),
+            addPattern: function(pattern, response) {
+                // パターンがnullまたはundefinedの場合は早期リターン
+                if (!pattern) return;
+                
+                const safePattern = this.sanitizePattern(pattern);
+                // safePatternがnullの場合も早期リターン
+                if (!safePattern) return;
+                
+                const key = JSON.stringify(safePattern);
+                this.patterns.set(key, response);
+            }.bind(this)
+        };
+
+        // 学習メカニズムの作成
+        this.learningMechanism = this.createLearningMechanism();
+    }
+    
+    // デフォルトのリソース収集アルゴリズム
+    createDefaultResourceGatheringAlgorithm() {
+        return {
+            name: "基本リソース収集",
+            parameters: {
+                searchRadius: 10,
+                priorityThreshold: 0.5,
+                energyThreshold: 0.3,
+                explorationWeight: 0.5
+            },
+            code: function(lifeform, environment, parameters) {
+                // 基本的なリソース収集ロジック
+                const resources = lifeform.detectResources(environment);
+                if (resources.length === 0) {
+                    // リソースが見つからない場合は探索
+                    return {
+                        action: "explore",
+                        direction: {
+                            x: (Math.random() - 0.5) * parameters.explorationWeight,
+                            y: (Math.random() - 0.5) * parameters.explorationWeight,
+                            z: (Math.random() - 0.5) * parameters.explorationWeight * 0.5
+                        }
+                    };
+                }
+                
+                // 最も価値の高いリソースを選択
+                let bestResource = resources[0];
+                let bestValue = bestResource.amount / (bestResource.distance || 1);
+                
+                for (let i = 1; i < resources.length; i++) {
+                    const resource = resources[i];
+                    const value = resource.amount / (resource.distance || 1);
+                    if (value > bestValue) {
+                        bestValue = value;
+                        bestResource = resource;
+                    }
+                }
+                
+                // リソースに向かう
+                const dx = bestResource.position.x - lifeform.position.x;
+                const dy = bestResource.position.y - lifeform.position.y;
+                const dz = bestResource.position.z - lifeform.position.z;
+                
+                return {
+                    action: "move_to_resource",
+                    direction: {
+                        x: dx * 0.1,
+                        y: dy * 0.1,
+                        z: dz * 0.1
+                    },
+                    target: bestResource
+                };
+            }
+        };
+    }
+    
+    // デフォルトの捕食者回避アルゴリズム
+    createDefaultPredatorAvoidanceAlgorithm() {
+        return {
+            name: "基本捕食者回避",
+            parameters: {
+                detectionRadius: 15,
+                fleeMultiplier: 1.5,
+                groupingWeight: 0.5,
+                hidingWeight: 0.7
+            },
+            code: function(lifeform, environment, parameters, lifeforms) {
+                // 捕食者検出
+                const threats = lifeform.detectThreats(lifeforms || []);
+                if (threats.length === 0) {
+                    return { action: "no_threat" };
+                }
+                
+                // 最も近い脅威を特定
+                let closestThreat = threats[0];
+                for (let i = 1; i < threats.length; i++) {
+                    if (threats[i].distance < closestThreat.distance) {
+                        closestThreat = threats[i];
+                    }
+                }
+                
+                // 脅威から逃げる方向を計算
+                const dx = lifeform.position.x - closestThreat.lifeform.position.x;
+                const dy = lifeform.position.y - closestThreat.lifeform.position.y;
+                const dz = lifeform.position.z - closestThreat.lifeform.position.z;
+                
+                // 距離に基づいて逃げる強さを調整
+                const distanceFactor = Math.max(0.1, Math.min(1.0, 1.0 / closestThreat.distance));
+                
+                return {
+                    action: "flee",
+                    direction: {
+                        x: dx * distanceFactor * parameters.fleeMultiplier,
+                        y: dy * distanceFactor * parameters.fleeMultiplier,
+                        z: dz * distanceFactor * parameters.fleeMultiplier
+                    },
+                    threat: closestThreat
+                };
+            }
+        };
+    }
+    
+    // デフォルトの交配アルゴリズム
+    createDefaultMatingAlgorithm() {
+        return {
+            name: "基本交配戦略",
+            parameters: {
+                searchRadius: 12,
+                energyThreshold: 0.7,
+                compatibilityThreshold: 0.6,
+                approachSpeed: 0.5
+            },
+            code: function(lifeform, environment, parameters, lifeforms) {
+                // エネルギーが閾値未満なら交配しない
+                if (lifeform.energy < parameters.energyThreshold) {
+                    return { action: "conserve_energy" };
+                }
+                
+                // 互換性のある仲間を探す
+                const companions = lifeform.findCompatibleCompanions(lifeforms || []);
+                if (companions.length === 0) {
+                    return { action: "search_mate" };
+                }
+                
+                // 最も互換性の高い相手を選択
+                let bestMate = null;
+                let bestCompatibility = parameters.compatibilityThreshold;
+                
+                for (const companion of companions) {
+                    // 遺伝的距離に基づく互換性を計算
+                    const geneticDistance = lifeform.calculateGeneticDistance(companion.lifeform);
+                    const compatibility = 1.0 - geneticDistance;
+                    
+                    if (compatibility > bestCompatibility && companion.lifeform.energy > parameters.energyThreshold) {
+                        bestMate = companion;
+                        bestCompatibility = compatibility;
+                    }
+                }
+                
+                if (!bestMate) {
+                    return { action: "search_mate" };
+                }
+                
+                // 選択した相手に近づく
+                const dx = bestMate.lifeform.position.x - lifeform.position.x;
+                const dy = bestMate.lifeform.position.y - lifeform.position.y;
+                const dz = bestMate.lifeform.position.z - lifeform.position.z;
+                
+                // 十分近ければ交配を試みる
+                if (bestMate.distance < 2.0) {
+                    return {
+                        action: "attempt_mating",
+                        target: bestMate.lifeform
+                    };
+                }
+                
+                return {
+                    action: "approach_mate",
+                    direction: {
+                        x: dx * parameters.approachSpeed,
+                        y: dy * parameters.approachSpeed,
+                        z: dz * parameters.approachSpeed
+                    },
+                    target: bestMate.lifeform
+                };
+            }
+        };
+    }
+    
+    // デフォルトの探索アルゴリズム
+    createDefaultExplorationAlgorithm() {
+        return {
+            name: "基本探索戦略",
+            parameters: {
+                explorationRadius: 20,
+                changeDirectionProbability: 0.05,
+                depthExplorationWeight: 0.3,
+                curiosityFactor: 0.5
+            },
+            code: function(lifeform, environment, parameters) {
+                // 方向転換の判定
+                if (!lifeform._explorationDirection || Math.random() < parameters.changeDirectionProbability) {
+                    // 新しい探索方向を設定
+                    const angle = Math.random() * Math.PI * 2;
+                    const verticalAngle = (Math.random() - 0.5) * Math.PI * parameters.depthExplorationWeight;
+                    
+                    lifeform._explorationDirection = {
+                        x: Math.cos(angle) * parameters.curiosityFactor,
+                        y: Math.sin(angle) * parameters.curiosityFactor,
+                        z: Math.sin(verticalAngle) * parameters.curiosityFactor * 0.5
+                    };
+                    
+                    lifeform._explorationDuration = Math.floor(Math.random() * 50) + 10;
+                } else {
+                    // 探索継続時間を減少
+                    lifeform._explorationDuration--;
+                    if (lifeform._explorationDuration <= 0) {
+                        lifeform._explorationDirection = null;
+                    }
+                }
+                
+                // 環境の境界に近づいたら方向を調整
+                const margin = 5;
+                if (lifeform.position.x < margin || lifeform.position.x > width - margin ||
+                    lifeform.position.y < margin || lifeform.position.y > height - margin ||
+                    lifeform.position.z < -10 + margin || lifeform.position.z > 10 - margin) {
+                    
+                    // 中心方向に向かう成分を追加
+                    const centerX = width / 2;
+                    const centerY = height / 2;
+                    const centerZ = 0;
+                    
+                    const toCenterX = centerX - lifeform.position.x;
+                    const toCenterY = centerY - lifeform.position.y;
+                    const toCenterZ = centerZ - lifeform.position.z;
+                    
+                    const centeringFactor = 0.2;
+                    
+                    if (lifeform._explorationDirection) {
+                        lifeform._explorationDirection.x += toCenterX * centeringFactor;
+                        lifeform._explorationDirection.y += toCenterY * centeringFactor;
+                        lifeform._explorationDirection.z += toCenterZ * centeringFactor;
+                    }
+                }
+                
+                return {
+                    action: "explore",
+                    direction: lifeform._explorationDirection || {
+                        x: (Math.random() - 0.5) * parameters.curiosityFactor,
+                        y: (Math.random() - 0.5) * parameters.curiosityFactor,
+                        z: (Math.random() - 0.5) * parameters.curiosityFactor * 0.5
+                    }
+                };
+            }
+        };
+    }
+    
+    // アルゴリズムの実行
+    executeAlgorithm(type, environment, lifeforms) {
+        const algorithm = this.algorithms[type];
+        if (!algorithm) return null;
+        
+        try {
+            // アルゴリズムの実行を試みる
+            this.performanceMetrics[type].attempts++;
+            const result = algorithm.code(this.lifeform, environment, algorithm.parameters, lifeforms);
+            return result;
+        } catch (error) {
+            // エラーが発生した場合は記録
+            console.error(`Algorithm execution error (${type}):`, error);
+            return null;
+        }
+    }
+    
+    // アルゴリズムの最適化
+    optimizeAlgorithm(type) {
+        const algorithm = this.algorithms[type];
+        if (!algorithm) return false;
+        
+        // 最適化の成功率はメタプログラミング能力に依存
+        const optimizationChance = this.metaprogrammingAbility * 0.5;
+        if (Math.random() > optimizationChance) return false;
+        
+        // パフォーマンスメトリクスを取得
+        const metrics = this.performanceMetrics[type];
+        if (metrics.attempts < 10) return false; // 十分なデータがない
+        
+        const successRate = metrics.success / metrics.attempts;
+        
+        // パラメータの最適化
+        const paramKeys = Object.keys(algorithm.parameters);
+        if (paramKeys.length === 0) return false;
+        
+        // ランダムにパラメータを選択して調整
+        const paramToOptimize = paramKeys[Math.floor(Math.random() * paramKeys.length)];
+        const currentValue = algorithm.parameters[paramToOptimize];
+        
+        // 成功率に基づいて調整方向を決定
+        const adjustmentDirection = successRate < 0.5 ? -1 : 1;
+        
+        // 創造性に基づいて調整量を決定
+        const adjustmentAmount = this.creativityFactor * (Math.random() * 0.2 + 0.05);
+        
+        // パラメータを調整
+        const newValue = currentValue * (1 + adjustmentDirection * adjustmentAmount);
+        
+        // 調整を記録
+        this.optimizationHistory.push({
+            time: Date.now(),
+            algorithm: type,
+            parameter: paramToOptimize,
+            oldValue: currentValue,
+            newValue: newValue,
+            successRate: successRate
+        });
+        
+        // パラメータを更新
+        algorithm.parameters[paramToOptimize] = newValue;
+        
+        // メトリクスをリセット
+        metrics.success = 0;
+        metrics.attempts = 0;
+        
+        return true;
+    }
+    
+    // 行動結果のフィードバック
+    provideFeedback(type, success) {
+        if (!this.performanceMetrics[type]) return;
+        
+        if (success) {
+            this.performanceMetrics[type].success++;
+        }
+    }
+    
+    // 新しいアルゴリズムの生成（創造的プロセス）
+    createNewAlgorithm(baseType) {
+        if (Math.random() > this.creativityFactor) return null;
+
+        const baseAlgorithm = this.algorithms[baseType];
+        if (!baseAlgorithm) return null;
+
+        // 新しいアルゴリズムの基本構造
+        const newAlgorithm = {
+            name: `進化型${baseAlgorithm.name}`,
+            parameters: this.evolveParameters(baseAlgorithm.parameters),
+            code: this.evolveCode(baseAlgorithm.code, baseType)
+        };
+
+        // 革新的な特徴の追加
+        this.addInnovativeFeatures(newAlgorithm, baseType);
+
+        // アルゴリズムの評価と最適化
+        this.evaluateAndOptimizeAlgorithm(newAlgorithm);
+
+        return newAlgorithm;
+    }
+
+    // パラメータの進化
+    evolveParameters(baseParams) {
+        const newParams = { ...baseParams };
+        
+        // 既存パラメータの創造的な調整
+        for (const [key, value] of Object.entries(newParams)) {
+            const innovationFactor = this.calculateInnovationFactor();
+            newParams[key] = value * (1 + (Math.random() - 0.5) * innovationFactor);
+        }
+
+        // 新しいパラメータの追加
+        if (Math.random() < this.creativityFactor * 0.4) {
+            const newFeatures = this.generateNewFeatures();
+            Object.assign(newParams, newFeatures);
+        }
+
+        return newParams;
+    }
+
+    // コードの進化
+    evolveCode(baseCode, algorithmType) {
+        return function(lifeform, environment, parameters, lifeforms) {
+            // 基本的な動作を継承
+            const baseResult = baseCode.call(this, lifeform, environment, parameters, lifeforms);
+
+            // パターン認識による行動の最適化
+            const recognizedPattern = this.recognizeEnvironmentalPattern(environment, lifeforms);
+            if (recognizedPattern) {
+                const adaptedBehavior = this.adaptBehaviorToPattern(baseResult, recognizedPattern);
+                if (adaptedBehavior) return adaptedBehavior;
+            }
+
+            // 創造的な問題解決の適用
+            const problem = this.identifyCurrentProblem(lifeform, environment, lifeforms);
+            if (problem) {
+                const creativeSolution = lifeform.cognition.generateCreativeSolution(problem);
+                if (creativeSolution && creativeSolution.confidence > this.problemSolvingCapabilities.adaptiveThreshold) {
+                    return this.implementCreativeSolution(creativeSolution, baseResult);
+                }
+            }
+
+            return baseResult;
+        }.bind(this);
+    }
+
+    // 革新的な特徴の追加
+    addInnovativeFeatures(algorithm, baseType) {
+        // アルゴリズムタイプに基づく特殊能力の追加
+        const specialAbilities = {
+            resourceGathering: this.generateResourceOptimizations(),
+            predatorAvoidance: this.generateThreatResponses(),
+            mating: this.generateSocialStrategies(),
+            exploration: this.generateExplorationInnovations()
+        };
+
+        if (specialAbilities[baseType]) {
+            Object.assign(algorithm.parameters, specialAbilities[baseType]);
+        }
+
+        // 学習能力の組み込み
+        algorithm.learningMechanism = this.createLearningMechanism();
+    }
+
+    // 環境パターンの認識
+    recognizeEnvironmentalPattern(environment, lifeforms) {
+        if (!environment || !lifeforms) return null;
+
+        // 各分析結果がnullまたはundefinedの場合に備えて安全に処理
+        const resourceDistribution = this.analyzeResourceDistribution(environment) || {};
+        const socialDynamics = this.analyzeSocialDynamics(lifeforms) || {};
+        const threats = this.analyzeThreats(environment, lifeforms) || {};
+
+        const pattern = {
+            resourceDistribution,
+            socialDynamics,
+            threats
+        };
+
+        // パターンの有効性を確認
+        if (!resourceDistribution && !socialDynamics && !threats) {
+            return null; // 有効なパターンがない場合は早期リターン
+        }
+
+        try {
+            // パターンを認識し、対応する行動を返す
+            const matchedPattern = this.patternMatchingSystem.findMatch(pattern);
+            
+            // 新しいパターンを学習（低確率で）
+            if (!matchedPattern && Math.random() < this.learningRate) {
+                const newResponse = this.generateResponseForPattern(pattern);
+                if (newResponse) {
+                    this.patternMatchingSystem.addPattern(pattern, newResponse);
+                    return newResponse;
+                }
+            }
+            
+            return matchedPattern;
+        } catch (error) {
+            console.error("Error in recognizeEnvironmentalPattern:", error);
+            return null;
+        }
+    }
+
+    // 新しいパターンに対する応答を生成
+    generateResponseForPattern(pattern) {
+        if (!pattern) return null;
+        
+        try {
+            const response = {
+                priority: 0,
+                actions: []
+            };
+
+            // リソース分布に基づく応答
+            if (pattern.resourceDistribution?.density > 0.5) {
+                response.actions.push({
+                    type: 'gather',
+                    weight: pattern.resourceDistribution.density
+                });
+            }
+
+            // 社会的動態に基づく応答
+            if (pattern.socialDynamics?.groupCount > 0) {
+                response.actions.push({
+                    type: 'socialize',
+                    weight: 0.5
+                });
+            }
+
+            // 脅威に基づく応答
+            if (pattern.threats?.predatorCount > 0) {
+                response.actions.push({
+                    type: 'avoid',
+                    weight: 0.8
+                });
+            }
+
+            // 優先度の計算
+            response.priority = response.actions.reduce((sum, action) => sum + action.weight, 0) / 
+                Math.max(1, response.actions.length);
+
+            return response.actions.length > 0 ? response : null;
+        } catch (error) {
+            console.error("Error in generateResponseForPattern:", error);
+            return null;
+        }
+    }
+
+    // パターンメモリの更新
+    updatePatternMemory(type, pattern, outcome) {
+        const memory = this.patternMemory[type];
+        const patternKey = JSON.stringify(pattern);
+
+        if (!memory.has(patternKey)) {
+            memory.set(patternKey, {
+                frequency: 1,
+                outcomes: [outcome],
+                averageSuccess: outcome.success
+            });
+        } else {
+            const data = memory.get(patternKey);
+            data.frequency++;
+            data.outcomes.push(outcome);
+            data.averageSuccess = data.outcomes.reduce((sum, o) => sum + o.success, 0) / data.outcomes.length;
+            
+            // メモリ管理（最新の100個の結果のみ保持）
+            if (data.outcomes.length > 100) {
+                data.outcomes.shift();
+            }
+        }
+    }
+
+    // 新しい解決策の合成
+    synthesizeNewSolution(problem) {
+        const solution = {
+            approach: [],
+            expectedOutcome: null,
+            confidence: 0
+        };
+
+        // 問題の分解
+        const subProblems = this.decomposeProblem(problem);
+
+        // 各サブ問題に対する解決策の生成
+        for (const subProblem of subProblems) {
+            const subSolution = this.generateSubSolution(subProblem);
+            solution.approach.push(subSolution);
+        }
+
+        // 解決策の統合と評価
+        solution.expectedOutcome = this.evaluateSolution(solution);
+        solution.confidence = this.calculateSolutionConfidence(solution);
+
+        // 創造性メトリクスの更新
+        this.updateCreativityMetrics(solution);
+
+        return solution;
+    }
+
+    // 問題の分解
+    decomposeProblem(problem) {
+        return [
+            { type: 'resource', aspect: problem.resourceNeeds },
+            { type: 'safety', aspect: problem.threats },
+            { type: 'social', aspect: problem.socialContext }
+        ].filter(sub => sub.aspect !== null);
+    }
+
+    // 創造性メトリクスの更新
+    updateCreativityMetrics(solution) {
+        // 新規性の評価
+        this.creativityMetrics.novelty = this.evaluateNovelty(solution);
+        
+        // 柔軟性の評価
+        this.creativityMetrics.flexibility = this.evaluateFlexibility(solution);
+        
+        // 精緻化の評価
+        this.creativityMetrics.elaboration = this.evaluateElaboration(solution);
+        
+        // 独創性の評価
+        this.creativityMetrics.originality = this.evaluateOriginality(solution);
+    }
+
+    // 解決策の評価
+    evaluateSolution(solution) {
+        return {
+            expectedSuccess: this.calculateExpectedSuccess(solution),
+            resourceCost: this.calculateResourceCost(solution),
+            riskLevel: this.calculateRiskLevel(solution),
+            adaptabilityScore: this.calculateAdaptabilityScore(solution)
+        };
+    }
+
+    // パターンから循環参照を除去するヘルパーメソッド
+    sanitizePattern(pattern) {
+        if (!pattern) return null;
+
+        try {
+            // 基本的なメトリクスのみを含む安全なオブジェクトを作成
+            const safePattern = {};
+
+            if (pattern.resourceDistribution) {
+                safePattern.resourceDistribution = {
+                    density: pattern.resourceDistribution.density || 0,
+                    clusterCount: pattern.resourceDistribution.clusters?.length || 0,
+                    gradientCount: pattern.resourceDistribution.gradients?.length || 0
+                };
+            }
+
+            if (pattern.socialDynamics) {
+                safePattern.socialDynamics = {
+                    groupCount: pattern.socialDynamics.groups?.length || 0,
+                    interactionCount: pattern.socialDynamics.interactions?.length || 0,
+                    hierarchyLevels: pattern.socialDynamics.hierarchy?.size || 0
+                };
+            }
+
+            if (pattern.threats) {
+                safePattern.threats = {
+                    predatorCount: pattern.threats.predators?.length || 0,
+                    hazardCount: pattern.threats.environmentalHazards?.length || 0,
+                    competitionLevel: pattern.threats.competitionLevel || 0
+                };
+            }
+
+            // 少なくとも1つのプロパティが存在するか確認
+            const hasProperties = Object.keys(safePattern).length > 0;
+            return hasProperties ? safePattern : null;
+        } catch (error) {
+            console.error("Error in sanitizePattern:", error);
+            return null;
+        }
+    }
+
+    // アルゴリズムの性能分析
+    analyzePerformance() {
+        const analysis = {};
+        
+        for (const [type, metrics] of Object.entries(this.performanceMetrics)) {
+            if (metrics.attempts === 0) {
+                analysis[type] = { successRate: 0, confidence: 0 };
+            } else {
+                const successRate = metrics.success / metrics.attempts;
+                const confidence = Math.min(1.0, metrics.attempts / 20); // サンプル数に基づく信頼度
+                
+                analysis[type] = { successRate, confidence };
+            }
+        }
+        
+        return analysis;
+    }
+
+    // イノベーション係数の計算
+    calculateInnovationFactor() {
+        // 創造性とメタプログラミング能力に基づいてイノベーション係数を計算
+        const baseInnovation = this.creativityFactor * this.metaprogrammingAbility;
+        
+        // 最近のイノベーション成功率を考慮
+        const recentSuccess = this.optimizationHistory
+            .slice(-5)
+            .filter(opt => opt.successRate > 0.6).length / 5;
+        
+        // 0.1から2.0の範囲で係数を返す
+        return Math.max(0.1, Math.min(2.0, baseInnovation * (1 + recentSuccess)));
+    }
+
+    // 新しい特徴の生成
+    generateNewFeatures() {
+        const features = {};
+        
+        // 創造性に基づいて新しい特徴を追加
+        if (Math.random() < this.creativityFactor) {
+            features.adaptiveResponse = Math.random();
+        }
+        
+        if (Math.random() < this.metaprogrammingAbility) {
+            features.learningBoost = 0.2 + Math.random() * 0.3;
+        }
+        
+        if (Math.random() < this.creativityFactor * this.metaprogrammingAbility) {
+            features.emergentBehavior = {
+                threshold: 0.3 + Math.random() * 0.4,
+                intensity: 0.2 + Math.random() * 0.6
+            };
+        }
+        
+        return features;
+    }
+
+    // リソース最適化の生成
+    generateResourceOptimizations() {
+        return {
+            resourceDetectionRange: 0.5 + Math.random() * 0.5,
+            resourcePrioritization: Math.random(),
+            energyEfficiency: 0.3 + Math.random() * 0.4,
+            gatheringStrategy: {
+                speed: 0.2 + Math.random() * 0.4,
+                precision: 0.3 + Math.random() * 0.4
+            }
+        };
+    }
+
+    // 脅威対応の生成
+    generateThreatResponses() {
+        return {
+            threatDetectionSensitivity: 0.4 + Math.random() * 0.4,
+            evasionEfficiency: 0.3 + Math.random() * 0.5,
+            groupDefense: Math.random(),
+            recoveryRate: 0.2 + Math.random() * 0.3
+        };
+    }
+
+    // 社会戦略の生成
+    generateSocialStrategies() {
+        return {
+            cooperationThreshold: 0.3 + Math.random() * 0.4,
+            socialLearning: Math.random(),
+            bondingStrength: 0.2 + Math.random() * 0.6,
+            groupFormation: {
+                size: 0.3 + Math.random() * 0.4,
+                cohesion: 0.2 + Math.random() * 0.5
+            }
+        };
+    }
+
+    // 探索革新の生成
+    generateExplorationInnovations() {
+        return {
+            curiosityFactor: 0.3 + Math.random() * 0.5,
+            territoryExpansion: Math.random(),
+            patternLearning: 0.2 + Math.random() * 0.4,
+            adaptiveMovement: {
+                speed: 0.2 + Math.random() * 0.4,
+                direction: 0.3 + Math.random() * 0.4
+            }
+        };
+    }
+
+    // アルゴリズムの評価と最適化
+    evaluateAndOptimizeAlgorithm(algorithm) {
+        // アルゴリズムの基本的な評価指標を計算
+        const evaluation = {
+            complexity: this.calculateComplexity(algorithm),
+            efficiency: this.estimateEfficiency(algorithm),
+            adaptability: this.assessAdaptability(algorithm),
+            robustness: this.evaluateRobustness(algorithm)
+        };
+
+        // 評価結果に基づいてアルゴリズムを最適化
+        if (evaluation.complexity > 0.8) {
+            // 複雑すぎる場合は簡略化
+            this.simplifyAlgorithm(algorithm);
+        }
+
+        if (evaluation.efficiency < 0.4) {
+            // 効率が低い場合は最適化
+            this.optimizeEfficiency(algorithm);
+        }
+
+        if (evaluation.adaptability < 0.5) {
+            // 適応性が低い場合は改善
+            this.improveAdaptability(algorithm);
+        }
+
+        return evaluation;
+    }
+
+    // アルゴリズムの複雑さを計算
+    calculateComplexity(algorithm) {
+        let complexity = 0;
+        
+        // パラメータの数による複雑さ
+        complexity += Object.keys(algorithm.parameters).length * 0.1;
+        
+        // コードの複雑さ（簡易的な評価）
+        const codeStr = algorithm.code.toString();
+        complexity += (codeStr.match(/if|for|while/g) || []).length * 0.05;
+        
+        return Math.min(1.0, complexity);
+    }
+
+    // アルゴリズムの効率を推定
+    estimateEfficiency(algorithm) {
+        // パラメータの最適性を評価
+        const paramEfficiency = Object.values(algorithm.parameters)
+            .reduce((sum, value) => sum + (value >= 0 && value <= 1 ? 1 : 0), 0) / 
+            Object.keys(algorithm.parameters).length;
+
+        return Math.max(0, Math.min(1, paramEfficiency));
+    }
+
+    // アルゴリズムの適応性を評価
+    assessAdaptability(algorithm) {
+        // パラメータの範囲と変動性を評価
+        let adaptability = 0;
+        const paramCount = Object.keys(algorithm.parameters).length;
+        
+        for (const value of Object.values(algorithm.parameters)) {
+            if (typeof value === 'number') {
+                // 数値パラメータの場合、適度な範囲内にあるかを評価
+                adaptability += (value >= 0.2 && value <= 0.8) ? 1 : 0;
+            }
+        }
+        
+        return paramCount > 0 ? adaptability / paramCount : 0;
+    }
+
+    // アルゴリズムの堅牢性を評価
+    evaluateRobustness(algorithm) {
+        // エラーハンドリングの存在を確認
+        const codeStr = algorithm.code.toString();
+        const hasTryCatch = codeStr.includes('try') && codeStr.includes('catch');
+        const hasNullChecks = codeStr.includes('=== null') || codeStr.includes('!==null');
+        const hasUndefinedChecks = codeStr.includes('=== undefined') || codeStr.includes('!==undefined');
+        
+        let robustness = 0;
+        if (hasTryCatch) robustness += 0.4;
+        if (hasNullChecks) robustness += 0.3;
+        if (hasUndefinedChecks) robustness += 0.3;
+        
+        return Math.min(1.0, robustness);
+    }
+
+    // アルゴリズムを簡略化
+    simplifyAlgorithm(algorithm) {
+        // パラメータ数を削減
+        const params = Object.entries(algorithm.parameters);
+        if (params.length > 5) {
+            // 最も重要でないパラメータを削除
+            const lessImportantParams = params
+                .sort((a, b) => Math.random() - 0.5)
+                .slice(5);
+            
+            for (const [key] of lessImportantParams) {
+                delete algorithm.parameters[key];
+            }
+        }
+    }
+
+    // アルゴリズムの効率を最適化
+    optimizeEfficiency(algorithm) {
+        // パラメータの値を最適な範囲に調整
+        for (const [key, value] of Object.entries(algorithm.parameters)) {
+            if (typeof value === 'number') {
+                // 値を0.3-0.7の範囲に調整
+                algorithm.parameters[key] = 0.3 + (value * 0.4);
+            }
+        }
+    }
+
+    // アルゴリズムの適応性を改善
+    improveAdaptability(algorithm) {
+        // パラメータに適度な変動範囲を持たせる
+        for (const [key, value] of Object.entries(algorithm.parameters)) {
+            if (typeof value === 'number') {
+                // 現在の値を中心に±20%の変動範囲を設定
+                const variation = value * 0.2;
+                algorithm.parameters[key] = {
+                    base: value,
+                    min: Math.max(0, value - variation),
+                    max: Math.min(1, value + variation)
+                };
+            }
+        }
+    }
+
+    // 環境リソースの分布を分析
+    analyzeResourceDistribution(environment) {
+        if (!environment) return null;
+
+        const distribution = {
+            density: 0,
+            clusters: [],
+            gradients: []
+        };
+
+        // グリッドを走査してリソースの分布を分析
+        let totalResources = 0;
+        let resourcePoints = [];
+
+        for (let x = 0; x < environment.grid.length; x++) {
+            for (let y = 0; y < environment.grid[x].length; y++) {
+                const cell = environment.grid[x][y];
+                if (cell && cell.size > 0) {
+                    totalResources += cell.size;
+                    resourcePoints.push({ x, y, amount: cell.size });
+                }
+            }
+        }
+
+        // 密度の計算
+        const gridSize = environment.grid.length * environment.grid[0].length;
+        distribution.density = totalResources / gridSize;
+
+        // クラスターの検出
+        distribution.clusters = this.detectResourceClusters(resourcePoints);
+
+        // 勾配の計算
+        distribution.gradients = this.calculateResourceGradients(resourcePoints);
+
+        return distribution;
+    }
+
+    // リソースクラスターを検出
+    detectResourceClusters(points) {
+        const clusters = [];
+        const visited = new Set();
+
+        for (const point of points) {
+            if (visited.has(`${point.x},${point.y}`)) continue;
+
+            const cluster = {
+                center: { x: point.x, y: point.y },
+                points: [],
+                totalAmount: 0
+            };
+
+            // 近接点を探索
+            for (const other of points) {
+                const distance = Math.sqrt(
+                    Math.pow(point.x - other.x, 2) + 
+                    Math.pow(point.y - other.y, 2)
+                );
+
+                if (distance < 5) { // クラスター半径
+                    cluster.points.push(other);
+                    cluster.totalAmount += other.amount;
+                    visited.add(`${other.x},${other.y}`);
+                }
+            }
+
+            if (cluster.points.length > 0) {
+                clusters.push(cluster);
+            }
+        }
+
+        return clusters;
+    }
+
+    // リソース勾配を計算
+    calculateResourceGradients(points) {
+        const gradients = [];
+        if (points.length < 2) return gradients;
+
+        // 隣接点間の勾配を計算
+        for (let i = 0; i < points.length - 1; i++) {
+            const current = points[i];
+            const next = points[i + 1];
+
+            const dx = next.x - current.x;
+            const dy = next.y - current.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance > 0) {
+                const gradient = {
+                    start: current,
+                    end: next,
+                    strength: (next.amount - current.amount) / distance,
+                    direction: { x: dx / distance, y: dy / distance }
+                };
+                gradients.push(gradient);
+            }
+        }
+
+        return gradients;
+    }
+
+    // 社会的動態を分析
+    analyzeSocialDynamics(lifeforms) {
+        if (!lifeforms || lifeforms.length === 0) return null;
+
+        const dynamics = {
+            groups: [],
+            interactions: [],
+            hierarchy: new Map()
+        };
+
+        // グループ形成の分析
+        dynamics.groups = this.detectSocialGroups(lifeforms);
+
+        // 相互作用の分析
+        dynamics.interactions = this.analyzeSocialInteractions(lifeforms);
+
+        // 階層構造の分析
+        dynamics.hierarchy = this.analyzeSocialHierarchy(lifeforms);
+
+        return dynamics;
+    }
+
+    // 社会的グループを検出
+    detectSocialGroups(lifeforms) {
+        const groups = [];
+        const assigned = new Set();
+
+        for (const lifeform of lifeforms) {
+            if (assigned.has(lifeform.id)) continue;
+
+            const group = {
+                members: [],
+                center: { x: 0, y: 0, z: 0 },
+                cohesion: 0
+            };
+
+            // グループメンバーを探索
+            for (const other of lifeforms) {
+                if (assigned.has(other.id)) continue;
+
+                const distance = Math.sqrt(
+                    Math.pow(lifeform.position.x - other.position.x, 2) +
+                    Math.pow(lifeform.position.y - other.position.y, 2) +
+                    Math.pow(lifeform.position.z - other.position.z, 2)
+                );
+
+                if (distance < 10) { // グループ半径
+                    group.members.push(other);
+                    assigned.add(other.id);
+                }
+            }
+
+            if (group.members.length > 0) {
+                // グループの中心を計算
+                group.center = this.calculateGroupCenter(group.members);
+                // グループの凝集度を計算
+                group.cohesion = this.calculateGroupCohesion(group.members, group.center);
+                groups.push(group);
+            }
+        }
+
+        return groups;
+    }
+
+    // グループの中心を計算
+    calculateGroupCenter(members) {
+        const center = { x: 0, y: 0, z: 0 };
+        for (const member of members) {
+            center.x += member.position.x;
+            center.y += member.position.y;
+            center.z += member.position.z;
+        }
+        center.x /= members.length;
+        center.y /= members.length;
+        center.z /= members.length;
+        return center;
+    }
+
+    // グループの凝集度を計算
+    calculateGroupCohesion(members, center) {
+        let totalDistance = 0;
+        for (const member of members) {
+            const distance = Math.sqrt(
+                Math.pow(member.position.x - center.x, 2) +
+                Math.pow(member.position.y - center.y, 2) +
+                Math.pow(member.position.z - center.z, 2)
+            );
+            totalDistance += distance;
+        }
+        return 1 - (totalDistance / (members.length * 10)); // 10は最大距離
+    }
+
+    // 社会的相互作用を分析
+    analyzeSocialInteractions(lifeforms) {
+        const interactions = [];
+        for (const lifeform of lifeforms) {
+            if (lifeform.bonds) {
+                lifeform.bonds.forEach((strength, other) => {
+                    interactions.push({
+                        source: lifeform,
+                        target: other,
+                        strength: strength,
+                        type: this.determineSocialInteractionType(lifeform, other)
+                    });
+                });
+            }
+        }
+        return interactions;
+    }
+
+    // 社会的相互作用のタイプを判定
+    determineSocialInteractionType(lifeform1, lifeform2) {
+        if (lifeform1.isPredator !== lifeform2.isPredator) {
+            return 'antagonistic';
+        }
+        if (lifeform1._matingPartner === lifeform2 || lifeform2._matingPartner === lifeform1) {
+            return 'reproductive';
+        }
+        return 'cooperative';
+    }
+
+    // 社会的階層構造を分析
+    analyzeSocialHierarchy(lifeforms) {
+        const hierarchy = new Map();
+        for (const lifeform of lifeforms) {
+            const rank = this.calculateSocialRank(lifeform, lifeforms);
+            hierarchy.set(lifeform.id, rank);
+        }
+        return hierarchy;
+    }
+
+    // 社会的ランクを計算
+    calculateSocialRank(lifeform, lifeforms) {
+        let rank = 0;
+        // エネルギーレベルによるランク
+        rank += lifeform.energy * 0.3;
+        // サイズによるランク
+        rank += lifeform.size * 0.2;
+        // 社会的結合の強さによるランク
+        if (lifeform.bonds) {
+            rank += Array.from(lifeform.bonds.values()).reduce((sum, strength) => sum + strength, 0) * 0.3;
+        }
+        // 捕食者ステータスによるランク
+        if (lifeform.isPredator) {
+            rank += 0.2;
+        }
+        return Math.min(1, rank);
+    }
+
+    // 脅威を分析
+    analyzeThreats(environment, lifeforms) {
+        const threats = {
+            predators: [],
+            environmentalHazards: [],
+            competitionLevel: 0
+        };
+
+        // 捕食者の分析
+        threats.predators = lifeforms
+            .filter(l => l.isPredator)
+            .map(predator => ({
+                position: predator.position,
+                strength: predator.energy * predator.size,
+                range: predator.dna.perception * 5
+            }));
+
+        // 環境ハザードの分析
+        threats.environmentalHazards = this.detectEnvironmentalHazards(environment);
+
+        // 競争レベルの計算
+        threats.competitionLevel = this.calculateCompetitionLevel(lifeforms);
+
+        return threats;
+    }
+
+    // 環境ハザードを検出
+    detectEnvironmentalHazards(environment) {
+        const hazards = [];
+        if (!environment || !environment.grid) return hazards;
+
+        for (let x = 0; x < environment.grid.length; x++) {
+            for (let y = 0; y < environment.grid[x].length; y++) {
+                const cell = environment.grid[x][y];
+                if (cell && cell.get(METABOLIC_PRODUCTS.TOXINS)) {
+                    hazards.push({
+                        position: { x, y },
+                        type: 'toxin',
+                        intensity: cell.get(METABOLIC_PRODUCTS.TOXINS)
+                    });
+                }
+            }
+        }
+
+        return hazards;
+    }
+
+    // 競争レベルを計算
+    calculateCompetitionLevel(lifeforms) {
+        if (!lifeforms || lifeforms.length === 0) return 0;
+
+        // 生命体密度に基づく競争レベル
+        const density = lifeforms.length / (width * height);
+        // リソース競合に基づく競争レベル
+        const resourceCompetition = this.calculateResourceCompetition(lifeforms);
+
+        return Math.min(1, (density * 0.5 + resourceCompetition * 0.5));
+    }
+
+    // リソース競合を計算
+    calculateResourceCompetition(lifeforms) {
+        let competition = 0;
+        const resourceUsers = lifeforms.filter(l => !l.isPredator);
+        
+        if (resourceUsers.length > 0) {
+            // 同じ領域でリソースを求める生命体の数に基づいて競合を計算
+            const territories = new Map();
+            for (const lifeform of resourceUsers) {
+                const key = `${Math.floor(lifeform.position.x/10)},${Math.floor(lifeform.position.y/10)}`;
+                territories.set(key, (territories.get(key) || 0) + 1);
+            }
+
+            // 最大の競合度を計算
+            competition = Math.max(...Array.from(territories.values())) / resourceUsers.length;
+        }
+
+        return competition;
+    }
+
+    // システム全体の更新
+    update(environment, lifeforms) {
+        // 最適化クールダウンの更新
+        if (this.optimizationCooldown > 0) {
+            this.optimizationCooldown--;
+        }
+
+        // 定期的な最適化（低確率）
+        if (this.optimizationCooldown === 0 && Math.random() < 0.05) {
+            // 最適化するアルゴリズムをランダムに選択
+            const algorithmTypes = Object.keys(this.algorithms);
+            const typeToOptimize = algorithmTypes[Math.floor(Math.random() * algorithmTypes.length)];
+            
+            // 最適化を試みる
+            const optimized = this.optimizeAlgorithm(typeToOptimize);
+            
+            if (optimized) {
+                // 最適化に成功したらクールダウンを設定
+                this.optimizationCooldown = 50;
+                this.currentOptimizationTarget = typeToOptimize;
+            }
+        }
+        
+        // 新しいアルゴリズムの創造（非常に低確率）
+        if (Math.random() < 0.01 * this.creativityFactor) {
+            const algorithmTypes = Object.keys(this.algorithms);
+            const baseType = algorithmTypes[Math.floor(Math.random() * algorithmTypes.length)];
+            
+            const newAlgorithm = this.createNewAlgorithm(baseType);
+            if (newAlgorithm) {
+                // 新しいアルゴリズムを採用するかどうか決定
+                const adoptionChance = this.metaprogrammingAbility * 0.3;
+                if (Math.random() < adoptionChance) {
+                    // 新しいアルゴリズムを採用
+                    this.algorithms[baseType] = newAlgorithm;
+                    
+                    // メトリクスをリセット
+                    this.performanceMetrics[baseType].success = 0;
+                    this.performanceMetrics[baseType].attempts = 0;
+                }
+            }
+        }
+        
+        // 状況に応じたアルゴリズム選択
+        let selectedAction = null;
+        
+        // 脅威検出
+        const threats = this.lifeform.detectThreats(lifeforms);
+        if (threats.length > 0) {
+            // 捕食者回避を優先
+            selectedAction = this.executeAlgorithm('predatorAvoidance', environment, lifeforms);
+            if (selectedAction && selectedAction.action !== 'no_threat') {
+                return selectedAction;
+            }
+        }
+        
+        // エネルギー状態に基づく行動選択
+        if (this.lifeform.energy < 0.3) {
+            // エネルギーが低い場合はリソース収集を優先
+            selectedAction = this.executeAlgorithm('resourceGathering', environment, lifeforms);
+            if (selectedAction && selectedAction.action === 'move_to_resource') {
+                return selectedAction;
+            }
+        } else if (this.lifeform.energy > 0.7) {
+            // エネルギーが十分ある場合は交配を検討
+            selectedAction = this.executeAlgorithm('mating', environment, lifeforms);
+            if (selectedAction && (selectedAction.action === 'approach_mate' || selectedAction.action === 'attempt_mating')) {
+                return selectedAction;
+            }
+        }
+        
+        // デフォルトは探索
+        return this.executeAlgorithm('exploration', environment, lifeforms);
+    }
+
+    // 学習メカニズムの作成
+    createLearningMechanism() {
+        return {
+            experienceMemory: new Map(),
+            learningRate: this.learningRate,
+            adaptationRate: this.creativityFactor * 0.5,
+            lastUpdate: Date.now(),
+
+            learn: function(situation, action, outcome) {
+                const situationKey = JSON.stringify(this.sanitizePattern(situation));
+                const experience = this.experienceMemory.get(situationKey) || {
+                    attempts: 0,
+                    successes: 0,
+                    failurePatterns: new Set(),
+                    lastSuccess: null,
+                    adaptations: []
+                };
+
+                experience.attempts++;
+                if (outcome.success) {
+                    experience.successes++;
+                    experience.lastSuccess = Date.now();
+                    
+                    // 成功した適応を記録
+                    if (outcome.adaptation) {
+                        experience.adaptations.push({
+                            type: outcome.adaptation,
+                            timestamp: Date.now(),
+                            context: outcome.context
+                        });
+                    }
+                } else {
+                    // 失敗パターンを記録
+                    experience.failurePatterns.add(JSON.stringify({
+                        action: action,
+                        reason: outcome.failureReason,
+                        context: outcome.context
+                    }));
+                }
+
+                // 古いデータの削除（最新の100件のみ保持）
+                if (experience.adaptations.length > 100) {
+                    experience.adaptations = experience.adaptations.slice(-100);
+                }
+
+                // 学習率の動的調整
+                this.updateLearningRate(experience);
+
+                this.experienceMemory.set(situationKey, experience);
+            }.bind(this),
+
+            // 学習率の更新
+            updateLearningRate: function(experience) {
+                const recentSuccessRate = experience.attempts > 0 ? 
+                    experience.successes / experience.attempts : 0;
+                
+                // 成功率に基づいて学習率を調整
+                if (recentSuccessRate > 0.7) {
+                    this.learningRate *= 0.95; // 高成功率なら学習率を少し下げる
+                } else if (recentSuccessRate < 0.3) {
+                    this.learningRate *= 1.05; // 低成功率なら学習率を上げる
+                }
+                
+                // 学習率の範囲を制限
+                this.learningRate = Math.max(0.01, Math.min(0.5, this.learningRate));
+            }.bind(this),
+
+            // 経験に基づく予測
+            predictOutcome: function(situation, action) {
+                const situationKey = JSON.stringify(this.sanitizePattern(situation));
+                const experience = this.experienceMemory.get(situationKey);
+                
+                if (!experience) return null;
+
+                const successRate = experience.successes / experience.attempts;
+                const timeSinceLastSuccess = Date.now() - (experience.lastSuccess || 0);
+                
+                return {
+                    expectedSuccess: successRate,
+                    confidence: Math.exp(-timeSinceLastSuccess / (1000 * 60 * 60)), // 時間経過で信頼度低下
+                    knownFailures: Array.from(experience.failurePatterns),
+                    relevantAdaptations: experience.adaptations
+                        .filter(a => Date.now() - a.timestamp < 1000 * 60 * 60) // 最近1時間の適応のみ
+                };
+            }.bind(this),
+
+            // 経験の一般化
+            generalizeExperience: function() {
+                const patterns = Array.from(this.experienceMemory.entries());
+                const generalizations = new Map();
+
+                for (const [situation, experience] of patterns) {
+                    const abstractPattern = this.abstractSituation(JSON.parse(situation));
+                    const existingGen = generalizations.get(abstractPattern) || {
+                        attempts: 0,
+                        successes: 0,
+                        adaptations: []
+                    };
+
+                    existingGen.attempts += experience.attempts;
+                    existingGen.successes += experience.successes;
+                    existingGen.adaptations = existingGen.adaptations.concat(experience.adaptations);
+
+                    generalizations.set(abstractPattern, existingGen);
+                }
+
+                return generalizations;
+            }.bind(this),
+
+            // 状況の抽象化
+            abstractSituation: function(situation) {
+                // 具体的な数値を範囲に変換
+                const abstract = {};
+                for (const [key, value] of Object.entries(situation)) {
+                    if (typeof value === 'number') {
+                        abstract[key] = Math.floor(value * 10) / 10; // 精度を下げて一般化
+                    } else if (Array.isArray(value)) {
+                        abstract[key] = value.length; // 配列の場合は要素数のみ保持
+                    } else {
+                        abstract[key] = value;
+                    }
+                }
+                return JSON.stringify(abstract);
+            }.bind(this)
+        };
     }
 } 
 
