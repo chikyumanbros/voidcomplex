@@ -400,9 +400,9 @@ document.addEventListener('DOMContentLoaded', () => {
             this.baseHue = this.calculateBaseHue();
             
             // 物理的な制約のためのパラメータを追加
-            this.terminalVelocity = 2.0;  // 終端速度
-            this.gravityStrength = 0.01;  // 重力の強さ
-            this.dragCoefficient = 0.05;  // 空気抵抗係数
+            this.terminalVelocity = 1.0;  // 終端速度
+            this.gravityStrength = 0.001;  // 重力の強さ
+            this.dragCoefficient = 0.01;  // 空気抵抗係数
             this.metabolicStress = 0;     // 代謝ストレス（高速移動によるダメージ蓄積）
             
             // 代謝関連の状態を追加
@@ -420,9 +420,9 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             
             // 慣性関連のパラメータを追加
-            this.inertia = 0.92;  // 慣性係数（高いほど慣性が強い）
-            this.turnRate = 0.15; // 方向転換の速度（低いほど滑らか）
-            this.accelerationSmoothing = 0.85; // 加速度の平滑化係数
+            this.inertia = 0.99;  // 慣性係数（高いほど慣性が強い）
+            this.turnRate = 0.05; // 方向転換の速度（低いほど滑らか）
+            this.accelerationSmoothing = 0.99; // 加速度の平滑化係数
             this.lastAcceleration = { x: 0, y: 0, z: 0 }; // 前回の加速度を保存
             
             // システムノイズへの適応状態を追加
@@ -1257,9 +1257,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             // エネルギー消費（効率と活動時間帯に基づく）
-            const mobilityFactor = this.dna.mobility * 0.1; // 移動能力が高いほどエネルギー消費も高い
+            const mobilityFactor = this.dna.mobility * 0.01; // 移動能力が高いほどエネルギー消費も高い
             this.energy -= energyDecayRate * 
-                (1 - this.dna.efficiency * 0.1) * 
+                (1 - this.dna.efficiency * 0.01) * 
                 activityMultiplier * 
                 (1 + depthStress) *
                 (1 + mobilityFactor);
@@ -2601,7 +2601,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const deadPosition = { ...lifeforms[i].position };
                 const deadEnergy = lifeforms[i].energy;
                 
-                if (Math.random() < 0.01) {  // 1%の確率で新しい生命体が発生
+                if (Math.random() < 0.05) {  // 1%の確率で新しい生命体が発生
                     const newDna = {
                         ...lifeforms[i].dna,
                         // 突然変異を加える
