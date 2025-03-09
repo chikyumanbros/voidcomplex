@@ -14,15 +14,6 @@ const initialLifeCount = 50;  // 初期生命体数
 const maxLifeforms = 500;     // 最大生命体数
 let time = 0;                 // シミュレーション時間
 
-// 代謝産物の定義をグローバルスコープに移動
-const METABOLIC_PRODUCTS = {
-    OXYGEN: 'oxygen',
-    GLUCOSE: 'glucose',
-    AMINO_ACIDS: 'amino_acids',
-    WASTE: 'waste',
-    TOXINS: 'toxins'
-};
-
 document.addEventListener('DOMContentLoaded', () => {
  
     const canvas = document.getElementById('canvas');
@@ -31,6 +22,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const asciiChars = '☻█▓▒░σ▪°∙*+∷∴∵·';
     // ネットワーク関係を表す特殊文字を追加
     const networkChars = '╒╓╔╕╖╗╘╙╚╛╜╝';
+    
+    // 代謝産物の定義
+    const METABOLIC_PRODUCTS = {
+        OXYGEN: 'oxygen',
+        GLUCOSE: 'glucose',
+        AMINO_ACIDS: 'amino_acids',
+        WASTE: 'waste',
+        TOXINS: 'toxins'
+    };
     
     // 環境クラスの定義
     class Environment {
@@ -513,22 +513,6 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // メタプログラミングシステムを初期化
             this.metaprogrammingSystem = new MetaprogrammingSystem(this);
-
-            // 創造性と問題解決に関する特性
-            this.creativitySystem = {
-                innovationPool: new Set(),
-                problemSolvingHistory: [],
-                adaptiveStrategies: new Map(),
-                currentChallenge: null
-            };
-
-            // 認知能力の拡張
-            this.dna.cognition = {
-                ...this.dna.cognition,
-                creativeProblemSolving: 0.2 + Math.random() * 0.4,
-                patternSynthesis: 0.3 + Math.random() * 0.4,
-                innovationCapacity: 0.1 + Math.random() * 0.5
-            };
         }
         
         calculateBaseHue() {
@@ -2681,132 +2665,6 @@ document.addEventListener('DOMContentLoaded', () => {
             // 同種族かどうかの判定に使用できる遺伝的距離を返す
             return Math.min(1.0, averageDifference);
         }
-
-        // 創造的な問題解決プロセス
-        solveProblemCreatively(problem) {
-            // 問題の分析
-            const analysis = this.analyzeProblem(problem);
-            
-            // 既存の解決策の検索
-            const existingSolution = this.findExistingSolution(analysis);
-            if (existingSolution && this.isValidSolution(existingSolution, problem)) {
-                return this.adaptExistingSolution(existingSolution, problem);
-            }
-
-            // 新しい解決策の生成
-            return this.generateNewSolution(analysis, problem);
-        }
-
-        // 問題の分析
-        analyzeProblem(problem) {
-            return {
-                type: this.classifyProblem(problem),
-                components: this.decomposeProblem(problem),
-                constraints: this.identifyConstraints(problem),
-                resources: this.assessAvailableResources(),
-                context: this.analyzeContext()
-            };
-        }
-
-        // 新しい解決策の生成
-        generateNewSolution(analysis, problem) {
-            const solution = {
-                steps: [],
-                resources: new Map(),
-                expectedOutcome: null,
-                adaptability: 0
-            };
-
-            // パターン合成による新しいアプローチの生成
-            const patterns = this.cognition.synthesizePatterns(analysis);
-            
-            // 各パターンに基づく解決ステップの生成
-            for (const pattern of patterns) {
-                const step = this.createSolutionStep(pattern, analysis);
-                if (this.isStepValid(step, solution)) {
-                    solution.steps.push(step);
-                }
-            }
-
-            // 解決策の評価と最適化
-            solution.expectedOutcome = this.evaluateSolution(solution, problem);
-            solution.adaptability = this.calculateAdaptability(solution);
-
-            // 創造性システムの更新
-            this.updateCreativitySystem(solution, problem);
-
-            return solution;
-        }
-
-        // 解決策の実装と評価
-        implementSolution(solution) {
-            const implementation = {
-                success: false,
-                steps: [],
-                feedback: []
-            };
-
-            // 各ステップの実装
-            for (const step of solution.steps) {
-                const result = this.executeStep(step);
-                implementation.steps.push(result);
-
-                // フィードバックの収集
-                implementation.feedback.push(this.collectFeedback(result));
-
-                // 必要に応じて適応的調整
-                if (!result.success) {
-                    const adjustment = this.adjustStrategy(step, result);
-                    if (adjustment) {
-                        implementation.steps.push(this.executeStep(adjustment));
-                    }
-                }
-            }
-
-            // 実装結果の評価
-            implementation.success = this.evaluateImplementation(implementation);
-
-            // 学習と適応
-            this.learnFromImplementation(implementation);
-
-            return implementation;
-        }
-
-        // 創造性システムの更新
-        updateCreativitySystem(solution, problem) {
-            // 新しい革新的アプローチの追加
-            if (this.isInnovative(solution)) {
-                this.creativitySystem.innovationPool.add(this.extractInnovation(solution));
-            }
-
-            // 問題解決履歴の更新
-            this.creativitySystem.problemSolvingHistory.push({
-                problem: problem,
-                solution: solution,
-                timestamp: Date.now()
-            });
-
-            // 適応戦略の更新
-            if (solution.adaptability > this.getAverageAdaptability()) {
-                this.creativitySystem.adaptiveStrategies.set(
-                    this.classifyProblem(problem),
-                    this.extractStrategy(solution)
-                );
-            }
-
-            // 古いデータの整理
-            this.cleanupCreativitySystem();
-        }
-
-        // 創造性メトリクスの計算
-        calculateCreativityMetrics() {
-            return {
-                innovationRate: this.calculateInnovationRate(),
-                adaptabilityScore: this.calculateAdaptabilityScore(),
-                problemSolvingEfficiency: this.calculateProblemSolvingEfficiency(),
-                patternRecognitionAccuracy: this.calculatePatternRecognitionAccuracy()
-            };
-        }
     }
     
     
@@ -3312,6 +3170,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // 生命体の描画
         for (let i = 0; i < lifeforms.length; i++) {
             const lifeform = lifeforms[i];
+            
+            // ... 既存のコード ...
             
             // メタプログラミング能力の視覚化
             if (lifeform.metaprogrammingSystem) {
@@ -3939,26 +3799,6 @@ class CognitiveHierarchy {
             adaptability: 0,
             consciousness: 0
         };
-
-        // パターン認識と創造性に関する新しいプロパティ
-        this.patternMemory = {
-            environmental: new Map(),
-            behavioral: new Map(),
-            social: new Map()
-        };
-        
-        this.creativityMetrics = {
-            novelty: 0,
-            flexibility: 0,
-            elaboration: 0,
-            originality: 0
-        };
-        
-        this.problemSolvingState = {
-            currentProblem: null,
-            attemptedSolutions: [],
-            successfulStrategies: new Map()
-        };
     }
     
     // 各レベルの思考プロセスを実行
@@ -4081,120 +3921,6 @@ class CognitiveHierarchy {
         }
         
         return finalDecision;
-    }
-
-    // パターン認識と学習
-    recognizeAndLearnPatterns(environment, behavior, outcome) {
-        // 環境パターンの認識
-        const envPattern = this.extractEnvironmentalPattern(environment);
-        this.updatePatternMemory('environmental', envPattern, outcome);
-
-        // 行動パターンの認識
-        const behavPattern = this.extractBehavioralPattern(behavior);
-        this.updatePatternMemory('behavioral', behavPattern, outcome);
-
-        // パターンの関連付けと学習
-        this.correlatePatterns();
-    }
-
-    // 創造的問題解決
-    generateCreativeSolution(problem) {
-        this.problemSolvingState.currentProblem = problem;
-
-        // 既存の成功戦略の検索
-        const existingStrategy = this.findSimilarStrategy(problem);
-        if (existingStrategy) {
-            // 既存戦略の適応的修正
-            return this.adaptExistingStrategy(existingStrategy, problem);
-        }
-
-        // 新しい解決策の生成
-        return this.synthesizeNewSolution(problem);
-    }
-
-    // パターンメモリの更新
-    updatePatternMemory(type, pattern, outcome) {
-        const memory = this.patternMemory[type];
-        const patternKey = JSON.stringify(pattern);
-
-        if (!memory.has(patternKey)) {
-            memory.set(patternKey, {
-                frequency: 1,
-                outcomes: [outcome],
-                averageSuccess: outcome.success
-            });
-        } else {
-            const data = memory.get(patternKey);
-            data.frequency++;
-            data.outcomes.push(outcome);
-            data.averageSuccess = data.outcomes.reduce((sum, o) => sum + o.success, 0) / data.outcomes.length;
-            
-            // メモリ管理（最新の100個の結果のみ保持）
-            if (data.outcomes.length > 100) {
-                data.outcomes.shift();
-            }
-        }
-    }
-
-    // 新しい解決策の合成
-    synthesizeNewSolution(problem) {
-        const solution = {
-            approach: [],
-            expectedOutcome: null,
-            confidence: 0
-        };
-
-        // 問題の分解
-        const subProblems = this.decomposeProblem(problem);
-
-        // 各サブ問題に対する解決策の生成
-        for (const subProblem of subProblems) {
-            const subSolution = this.generateSubSolution(subProblem);
-            solution.approach.push(subSolution);
-        }
-
-        // 解決策の統合と評価
-        solution.expectedOutcome = this.evaluateSolution(solution);
-        solution.confidence = this.calculateSolutionConfidence(solution);
-
-        // 創造性メトリクスの更新
-        this.updateCreativityMetrics(solution);
-
-        return solution;
-    }
-
-    // 問題の分解
-    decomposeProblem(problem) {
-        return [
-            { type: 'resource', aspect: problem.resourceNeeds },
-            { type: 'safety', aspect: problem.threats },
-            { type: 'social', aspect: problem.socialContext }
-        ].filter(sub => sub.aspect !== null);
-    }
-
-    // 創造性メトリクスの更新
-    updateCreativityMetrics(solution) {
-        // 新規性の評価
-        this.creativityMetrics.novelty = this.evaluateNovelty(solution);
-        
-        // 柔軟性の評価
-        this.creativityMetrics.flexibility = this.evaluateFlexibility(solution);
-        
-        // 精緻化の評価
-        this.creativityMetrics.elaboration = this.evaluateElaboration(solution);
-        
-        // 独創性の評価
-        this.creativityMetrics.originality = this.evaluateOriginality(solution);
-    }
-
-    // 解決策の評価
-    evaluateSolution(solution) {
-        return {
-            expectedSuccess: this.calculateExpectedSuccess(solution),
-            resourceCost: this.calculateResourceCost(solution),
-            riskLevel: this.calculateRiskLevel(solution),
-            adaptabilityScore: this.calculateAdaptabilityScore(solution)
-        };
     }
 } 
 
@@ -4729,49 +4455,6 @@ class MetaprogrammingSystem {
         this.metaprogrammingAbility = lifeform.dna.metaprogrammingAbility || 0.3;
         this.learningRate = lifeform.dna.learningRate || 0.2;
         this.creativityFactor = lifeform.dna.creativity || 0.4;
-
-        // 創造的問題解決のための新しいプロパティ
-        this.problemSolvingCapabilities = {
-            patternRecognition: lifeform.dna.cognition.patternRecognition || 0.3,
-            innovationRate: lifeform.dna.cognition.innovationRate || 0.2,
-            adaptiveThreshold: 0.4,
-            lastInnovation: null
-        };
-
-        // アルゴリズム進化の履歴
-        this.algorithmEvolution = new Map();
-        this.learningMechanism = this.createLearningMechanism();
-
-        // パターン認識システムの初期化を修正
-        this.patternMatchingSystem = {
-            patterns: new Map(),
-            findMatch: function(pattern) {
-                // パターンがnullまたはundefinedの場合は早期リターン
-                if (!pattern) return null;
-                
-                // パターンを安全にシリアライズ可能な形式に変換
-                const safePattern = this.sanitizePattern(pattern);
-                // safePatternがnullの場合も早期リターン
-                if (!safePattern) return null;
-                
-                const key = JSON.stringify(safePattern);
-                return this.patterns.get(key) || null;
-            }.bind(this),
-            addPattern: function(pattern, response) {
-                // パターンがnullまたはundefinedの場合は早期リターン
-                if (!pattern) return;
-                
-                const safePattern = this.sanitizePattern(pattern);
-                // safePatternがnullの場合も早期リターン
-                if (!safePattern) return;
-                
-                const key = JSON.stringify(safePattern);
-                this.patterns.set(key, response);
-            }.bind(this)
-        };
-
-        // 学習メカニズムの作成
-        this.learningMechanism = this.createLearningMechanism();
     }
     
     // デフォルトのリソース収集アルゴリズム
@@ -5091,869 +4774,71 @@ class MetaprogrammingSystem {
     
     // 新しいアルゴリズムの生成（創造的プロセス）
     createNewAlgorithm(baseType) {
+        // 創造性が低い場合は失敗
         if (Math.random() > this.creativityFactor) return null;
-
+        
         const baseAlgorithm = this.algorithms[baseType];
         if (!baseAlgorithm) return null;
-
-        // 新しいアルゴリズムの基本構造
-        const newAlgorithm = {
-            name: `進化型${baseAlgorithm.name}`,
-            parameters: this.evolveParameters(baseAlgorithm.parameters),
-            code: this.evolveCode(baseAlgorithm.code, baseType)
-        };
-
-        // 革新的な特徴の追加
-        this.addInnovativeFeatures(newAlgorithm, baseType);
-
-        // アルゴリズムの評価と最適化
-        this.evaluateAndOptimizeAlgorithm(newAlgorithm);
-
-        return newAlgorithm;
-    }
-
-    // パラメータの進化
-    evolveParameters(baseParams) {
-        const newParams = { ...baseParams };
         
-        // 既存パラメータの創造的な調整
-        for (const [key, value] of Object.entries(newParams)) {
-            const innovationFactor = this.calculateInnovationFactor();
-            newParams[key] = value * (1 + (Math.random() - 0.5) * innovationFactor);
+        // 新しいアルゴリズム名
+        const newName = `進化型${baseAlgorithm.name}`;
+        
+        // パラメータの変異
+        const newParameters = {};
+        for (const [key, value] of Object.entries(baseAlgorithm.parameters)) {
+            // 各パラメータをランダムに変異
+            newParameters[key] = value * (1 + (Math.random() - 0.5) * this.creativityFactor);
         }
-
-        // 新しいパラメータの追加
-        if (Math.random() < this.creativityFactor * 0.4) {
-            const newFeatures = this.generateNewFeatures();
-            Object.assign(newParams, newFeatures);
+        
+        // 新しいパラメータの追加（低確率）
+        if (Math.random() < this.creativityFactor * 0.3) {
+            const newParamName = `adaptive_${Math.floor(Math.random() * 1000)}`;
+            newParameters[newParamName] = Math.random();
         }
-
-        return newParams;
-    }
-
-    // コードの進化
-    evolveCode(baseCode, algorithmType) {
-        return function(lifeform, environment, parameters, lifeforms) {
-            // 基本的な動作を継承
-            const baseResult = baseCode.call(this, lifeform, environment, parameters, lifeforms);
-
-            // パターン認識による行動の最適化
-            const recognizedPattern = this.recognizeEnvironmentalPattern(environment, lifeforms);
-            if (recognizedPattern) {
-                const adaptedBehavior = this.adaptBehaviorToPattern(baseResult, recognizedPattern);
-                if (adaptedBehavior) return adaptedBehavior;
-            }
-
-            // 創造的な問題解決の適用
-            const problem = this.identifyCurrentProblem(lifeform, environment, lifeforms);
-            if (problem) {
-                const creativeSolution = lifeform.cognition.generateCreativeSolution(problem);
-                if (creativeSolution && creativeSolution.confidence > this.problemSolvingCapabilities.adaptiveThreshold) {
-                    return this.implementCreativeSolution(creativeSolution, baseResult);
-                }
-            }
-
-            return baseResult;
-        }.bind(this);
-    }
-
-    // 革新的な特徴の追加
-    addInnovativeFeatures(algorithm, baseType) {
-        // アルゴリズムタイプに基づく特殊能力の追加
-        const specialAbilities = {
-            resourceGathering: this.generateResourceOptimizations(),
-            predatorAvoidance: this.generateThreatResponses(),
-            mating: this.generateSocialStrategies(),
-            exploration: this.generateExplorationInnovations()
-        };
-
-        if (specialAbilities[baseType]) {
-            Object.assign(algorithm.parameters, specialAbilities[baseType]);
-        }
-
-        // 学習能力の組み込み
-        algorithm.learningMechanism = this.createLearningMechanism();
-    }
-
-    // 環境パターンの認識
-    recognizeEnvironmentalPattern(environment, lifeforms) {
-        if (!environment || !lifeforms) return null;
-
-        // 各分析結果がnullまたはundefinedの場合に備えて安全に処理
-        const resourceDistribution = this.analyzeResourceDistribution(environment) || {};
-        const socialDynamics = this.analyzeSocialDynamics(lifeforms) || {};
-        const threats = this.analyzeThreats(environment, lifeforms) || {};
-
-        const pattern = {
-            resourceDistribution,
-            socialDynamics,
-            threats
-        };
-
-        // パターンの有効性を確認
-        if (!resourceDistribution && !socialDynamics && !threats) {
-            return null; // 有効なパターンがない場合は早期リターン
-        }
-
-        try {
-            // パターンを認識し、対応する行動を返す
-            const matchedPattern = this.patternMatchingSystem.findMatch(pattern);
+        
+        // コードの変異（実際には難しいので、ここではパラメータ参照方法を変更）
+        const newCode = function(lifeform, environment, parameters, lifeforms) {
+            // 基本的には元のコードを実行
+            const result = baseAlgorithm.code(lifeform, environment, parameters, lifeforms);
             
-            // 新しいパターンを学習（低確率で）
-            if (!matchedPattern && Math.random() < this.learningRate) {
-                const newResponse = this.generateResponseForPattern(pattern);
-                if (newResponse) {
-                    this.patternMatchingSystem.addPattern(pattern, newResponse);
-                    return newResponse;
-                }
-            }
-            
-            return matchedPattern;
-        } catch (error) {
-            console.error("Error in recognizeEnvironmentalPattern:", error);
-            return null;
-        }
-    }
-
-    // 新しいパターンに対する応答を生成
-    generateResponseForPattern(pattern) {
-        if (!pattern) return null;
-        
-        try {
-            const response = {
-                priority: 0,
-                actions: []
-            };
-
-            // リソース分布に基づく応答
-            if (pattern.resourceDistribution?.density > 0.5) {
-                response.actions.push({
-                    type: 'gather',
-                    weight: pattern.resourceDistribution.density
-                });
-            }
-
-            // 社会的動態に基づく応答
-            if (pattern.socialDynamics?.groupCount > 0) {
-                response.actions.push({
-                    type: 'socialize',
-                    weight: 0.5
-                });
-            }
-
-            // 脅威に基づく応答
-            if (pattern.threats?.predatorCount > 0) {
-                response.actions.push({
-                    type: 'avoid',
-                    weight: 0.8
-                });
-            }
-
-            // 優先度の計算
-            response.priority = response.actions.reduce((sum, action) => sum + action.weight, 0) / 
-                Math.max(1, response.actions.length);
-
-            return response.actions.length > 0 ? response : null;
-        } catch (error) {
-            console.error("Error in generateResponseForPattern:", error);
-            return null;
-        }
-    }
-
-    // パターンメモリの更新
-    updatePatternMemory(type, pattern, outcome) {
-        const memory = this.patternMemory[type];
-        const patternKey = JSON.stringify(pattern);
-
-        if (!memory.has(patternKey)) {
-            memory.set(patternKey, {
-                frequency: 1,
-                outcomes: [outcome],
-                averageSuccess: outcome.success
-            });
-        } else {
-            const data = memory.get(patternKey);
-            data.frequency++;
-            data.outcomes.push(outcome);
-            data.averageSuccess = data.outcomes.reduce((sum, o) => sum + o.success, 0) / data.outcomes.length;
-            
-            // メモリ管理（最新の100個の結果のみ保持）
-            if (data.outcomes.length > 100) {
-                data.outcomes.shift();
-            }
-        }
-    }
-
-    // 新しい解決策の合成
-    synthesizeNewSolution(problem) {
-        const solution = {
-            approach: [],
-            expectedOutcome: null,
-            confidence: 0
-        };
-
-        // 問題の分解
-        const subProblems = this.decomposeProblem(problem);
-
-        // 各サブ問題に対する解決策の生成
-        for (const subProblem of subProblems) {
-            const subSolution = this.generateSubSolution(subProblem);
-            solution.approach.push(subSolution);
-        }
-
-        // 解決策の統合と評価
-        solution.expectedOutcome = this.evaluateSolution(solution);
-        solution.confidence = this.calculateSolutionConfidence(solution);
-
-        // 創造性メトリクスの更新
-        this.updateCreativityMetrics(solution);
-
-        return solution;
-    }
-
-    // 問題の分解
-    decomposeProblem(problem) {
-        return [
-            { type: 'resource', aspect: problem.resourceNeeds },
-            { type: 'safety', aspect: problem.threats },
-            { type: 'social', aspect: problem.socialContext }
-        ].filter(sub => sub.aspect !== null);
-    }
-
-    // 創造性メトリクスの更新
-    updateCreativityMetrics(solution) {
-        // 新規性の評価
-        this.creativityMetrics.novelty = this.evaluateNovelty(solution);
-        
-        // 柔軟性の評価
-        this.creativityMetrics.flexibility = this.evaluateFlexibility(solution);
-        
-        // 精緻化の評価
-        this.creativityMetrics.elaboration = this.evaluateElaboration(solution);
-        
-        // 独創性の評価
-        this.creativityMetrics.originality = this.evaluateOriginality(solution);
-    }
-
-    // 解決策の評価
-    evaluateSolution(solution) {
-        return {
-            expectedSuccess: this.calculateExpectedSuccess(solution),
-            resourceCost: this.calculateResourceCost(solution),
-            riskLevel: this.calculateRiskLevel(solution),
-            adaptabilityScore: this.calculateAdaptabilityScore(solution)
-        };
-    }
-
-    // パターンから循環参照を除去するヘルパーメソッド
-    sanitizePattern(pattern) {
-        if (!pattern) return null;
-
-        try {
-            // 基本的なメトリクスのみを含む安全なオブジェクトを作成
-            const safePattern = {};
-
-            if (pattern.resourceDistribution) {
-                safePattern.resourceDistribution = {
-                    density: pattern.resourceDistribution.density || 0,
-                    clusterCount: pattern.resourceDistribution.clusters?.length || 0,
-                    gradientCount: pattern.resourceDistribution.gradients?.length || 0
-                };
-            }
-
-            if (pattern.socialDynamics) {
-                safePattern.socialDynamics = {
-                    groupCount: pattern.socialDynamics.groups?.length || 0,
-                    interactionCount: pattern.socialDynamics.interactions?.length || 0,
-                    hierarchyLevels: pattern.socialDynamics.hierarchy?.size || 0
-                };
-            }
-
-            if (pattern.threats) {
-                safePattern.threats = {
-                    predatorCount: pattern.threats.predators?.length || 0,
-                    hazardCount: pattern.threats.environmentalHazards?.length || 0,
-                    competitionLevel: pattern.threats.competitionLevel || 0
-                };
-            }
-
-            // 少なくとも1つのプロパティが存在するか確認
-            const hasProperties = Object.keys(safePattern).length > 0;
-            return hasProperties ? safePattern : null;
-        } catch (error) {
-            console.error("Error in sanitizePattern:", error);
-            return null;
-        }
-    }
-
-    // アルゴリズムの性能分析
-    analyzePerformance() {
-        const analysis = {};
-        
-        for (const [type, metrics] of Object.entries(this.performanceMetrics)) {
-            if (metrics.attempts === 0) {
-                analysis[type] = { successRate: 0, confidence: 0 };
-            } else {
-                const successRate = metrics.success / metrics.attempts;
-                const confidence = Math.min(1.0, metrics.attempts / 20); // サンプル数に基づく信頼度
+            // 結果に適応的な修正を加える
+            if (result && result.direction) {
+                // 環境状態に基づく適応
+                const environmentalFactor = environment?.systemState?.cpuLoad || 0.5;
                 
-                analysis[type] = { successRate, confidence };
+                // 方向の微調整
+                result.direction.x *= 1 + (environmentalFactor - 0.5) * 0.2;
+                result.direction.y *= 1 + (environmentalFactor - 0.5) * 0.2;
+                
+                // エネルギー状態に基づく調整
+                if (lifeform.energy < 0.3) {
+                    // 省エネモード
+                    result.direction.x *= 0.8;
+                    result.direction.y *= 0.8;
+                    result.direction.z *= 0.8;
+                }
             }
-        }
-        
-        return analysis;
-    }
-
-    // イノベーション係数の計算
-    calculateInnovationFactor() {
-        // 創造性とメタプログラミング能力に基づいてイノベーション係数を計算
-        const baseInnovation = this.creativityFactor * this.metaprogrammingAbility;
-        
-        // 最近のイノベーション成功率を考慮
-        const recentSuccess = this.optimizationHistory
-            .slice(-5)
-            .filter(opt => opt.successRate > 0.6).length / 5;
-        
-        // 0.1から2.0の範囲で係数を返す
-        return Math.max(0.1, Math.min(2.0, baseInnovation * (1 + recentSuccess)));
-    }
-
-    // 新しい特徴の生成
-    generateNewFeatures() {
-        const features = {};
-        
-        // 創造性に基づいて新しい特徴を追加
-        if (Math.random() < this.creativityFactor) {
-            features.adaptiveResponse = Math.random();
-        }
-        
-        if (Math.random() < this.metaprogrammingAbility) {
-            features.learningBoost = 0.2 + Math.random() * 0.3;
-        }
-        
-        if (Math.random() < this.creativityFactor * this.metaprogrammingAbility) {
-            features.emergentBehavior = {
-                threshold: 0.3 + Math.random() * 0.4,
-                intensity: 0.2 + Math.random() * 0.6
-            };
-        }
-        
-        return features;
-    }
-
-    // リソース最適化の生成
-    generateResourceOptimizations() {
-        return {
-            resourceDetectionRange: 0.5 + Math.random() * 0.5,
-            resourcePrioritization: Math.random(),
-            energyEfficiency: 0.3 + Math.random() * 0.4,
-            gatheringStrategy: {
-                speed: 0.2 + Math.random() * 0.4,
-                precision: 0.3 + Math.random() * 0.4
-            }
-        };
-    }
-
-    // 脅威対応の生成
-    generateThreatResponses() {
-        return {
-            threatDetectionSensitivity: 0.4 + Math.random() * 0.4,
-            evasionEfficiency: 0.3 + Math.random() * 0.5,
-            groupDefense: Math.random(),
-            recoveryRate: 0.2 + Math.random() * 0.3
-        };
-    }
-
-    // 社会戦略の生成
-    generateSocialStrategies() {
-        return {
-            cooperationThreshold: 0.3 + Math.random() * 0.4,
-            socialLearning: Math.random(),
-            bondingStrength: 0.2 + Math.random() * 0.6,
-            groupFormation: {
-                size: 0.3 + Math.random() * 0.4,
-                cohesion: 0.2 + Math.random() * 0.5
-            }
-        };
-    }
-
-    // 探索革新の生成
-    generateExplorationInnovations() {
-        return {
-            curiosityFactor: 0.3 + Math.random() * 0.5,
-            territoryExpansion: Math.random(),
-            patternLearning: 0.2 + Math.random() * 0.4,
-            adaptiveMovement: {
-                speed: 0.2 + Math.random() * 0.4,
-                direction: 0.3 + Math.random() * 0.4
-            }
-        };
-    }
-
-    // アルゴリズムの評価と最適化
-    evaluateAndOptimizeAlgorithm(algorithm) {
-        // アルゴリズムの基本的な評価指標を計算
-        const evaluation = {
-            complexity: this.calculateComplexity(algorithm),
-            efficiency: this.estimateEfficiency(algorithm),
-            adaptability: this.assessAdaptability(algorithm),
-            robustness: this.evaluateRobustness(algorithm)
-        };
-
-        // 評価結果に基づいてアルゴリズムを最適化
-        if (evaluation.complexity > 0.8) {
-            // 複雑すぎる場合は簡略化
-            this.simplifyAlgorithm(algorithm);
-        }
-
-        if (evaluation.efficiency < 0.4) {
-            // 効率が低い場合は最適化
-            this.optimizeEfficiency(algorithm);
-        }
-
-        if (evaluation.adaptability < 0.5) {
-            // 適応性が低い場合は改善
-            this.improveAdaptability(algorithm);
-        }
-
-        return evaluation;
-    }
-
-    // アルゴリズムの複雑さを計算
-    calculateComplexity(algorithm) {
-        let complexity = 0;
-        
-        // パラメータの数による複雑さ
-        complexity += Object.keys(algorithm.parameters).length * 0.1;
-        
-        // コードの複雑さ（簡易的な評価）
-        const codeStr = algorithm.code.toString();
-        complexity += (codeStr.match(/if|for|while/g) || []).length * 0.05;
-        
-        return Math.min(1.0, complexity);
-    }
-
-    // アルゴリズムの効率を推定
-    estimateEfficiency(algorithm) {
-        // パラメータの最適性を評価
-        const paramEfficiency = Object.values(algorithm.parameters)
-            .reduce((sum, value) => sum + (value >= 0 && value <= 1 ? 1 : 0), 0) / 
-            Object.keys(algorithm.parameters).length;
-
-        return Math.max(0, Math.min(1, paramEfficiency));
-    }
-
-    // アルゴリズムの適応性を評価
-    assessAdaptability(algorithm) {
-        // パラメータの範囲と変動性を評価
-        let adaptability = 0;
-        const paramCount = Object.keys(algorithm.parameters).length;
-        
-        for (const value of Object.values(algorithm.parameters)) {
-            if (typeof value === 'number') {
-                // 数値パラメータの場合、適度な範囲内にあるかを評価
-                adaptability += (value >= 0.2 && value <= 0.8) ? 1 : 0;
-            }
-        }
-        
-        return paramCount > 0 ? adaptability / paramCount : 0;
-    }
-
-    // アルゴリズムの堅牢性を評価
-    evaluateRobustness(algorithm) {
-        // エラーハンドリングの存在を確認
-        const codeStr = algorithm.code.toString();
-        const hasTryCatch = codeStr.includes('try') && codeStr.includes('catch');
-        const hasNullChecks = codeStr.includes('=== null') || codeStr.includes('!==null');
-        const hasUndefinedChecks = codeStr.includes('=== undefined') || codeStr.includes('!==undefined');
-        
-        let robustness = 0;
-        if (hasTryCatch) robustness += 0.4;
-        if (hasNullChecks) robustness += 0.3;
-        if (hasUndefinedChecks) robustness += 0.3;
-        
-        return Math.min(1.0, robustness);
-    }
-
-    // アルゴリズムを簡略化
-    simplifyAlgorithm(algorithm) {
-        // パラメータ数を削減
-        const params = Object.entries(algorithm.parameters);
-        if (params.length > 5) {
-            // 最も重要でないパラメータを削除
-            const lessImportantParams = params
-                .sort((a, b) => Math.random() - 0.5)
-                .slice(5);
             
-            for (const [key] of lessImportantParams) {
-                delete algorithm.parameters[key];
-            }
-        }
-    }
-
-    // アルゴリズムの効率を最適化
-    optimizeEfficiency(algorithm) {
-        // パラメータの値を最適な範囲に調整
-        for (const [key, value] of Object.entries(algorithm.parameters)) {
-            if (typeof value === 'number') {
-                // 値を0.3-0.7の範囲に調整
-                algorithm.parameters[key] = 0.3 + (value * 0.4);
-            }
-        }
-    }
-
-    // アルゴリズムの適応性を改善
-    improveAdaptability(algorithm) {
-        // パラメータに適度な変動範囲を持たせる
-        for (const [key, value] of Object.entries(algorithm.parameters)) {
-            if (typeof value === 'number') {
-                // 現在の値を中心に±20%の変動範囲を設定
-                const variation = value * 0.2;
-                algorithm.parameters[key] = {
-                    base: value,
-                    min: Math.max(0, value - variation),
-                    max: Math.min(1, value + variation)
-                };
-            }
-        }
-    }
-
-    // 環境リソースの分布を分析
-    analyzeResourceDistribution(environment) {
-        if (!environment) return null;
-
-        const distribution = {
-            density: 0,
-            clusters: [],
-            gradients: []
+            return result;
         };
-
-        // グリッドを走査してリソースの分布を分析
-        let totalResources = 0;
-        let resourcePoints = [];
-
-        for (let x = 0; x < environment.grid.length; x++) {
-            for (let y = 0; y < environment.grid[x].length; y++) {
-                const cell = environment.grid[x][y];
-                if (cell && cell.size > 0) {
-                    totalResources += cell.size;
-                    resourcePoints.push({ x, y, amount: cell.size });
-                }
-            }
-        }
-
-        // 密度の計算
-        const gridSize = environment.grid.length * environment.grid[0].length;
-        distribution.density = totalResources / gridSize;
-
-        // クラスターの検出
-        distribution.clusters = this.detectResourceClusters(resourcePoints);
-
-        // 勾配の計算
-        distribution.gradients = this.calculateResourceGradients(resourcePoints);
-
-        return distribution;
-    }
-
-    // リソースクラスターを検出
-    detectResourceClusters(points) {
-        const clusters = [];
-        const visited = new Set();
-
-        for (const point of points) {
-            if (visited.has(`${point.x},${point.y}`)) continue;
-
-            const cluster = {
-                center: { x: point.x, y: point.y },
-                points: [],
-                totalAmount: 0
-            };
-
-            // 近接点を探索
-            for (const other of points) {
-                const distance = Math.sqrt(
-                    Math.pow(point.x - other.x, 2) + 
-                    Math.pow(point.y - other.y, 2)
-                );
-
-                if (distance < 5) { // クラスター半径
-                    cluster.points.push(other);
-                    cluster.totalAmount += other.amount;
-                    visited.add(`${other.x},${other.y}`);
-                }
-            }
-
-            if (cluster.points.length > 0) {
-                clusters.push(cluster);
-            }
-        }
-
-        return clusters;
-    }
-
-    // リソース勾配を計算
-    calculateResourceGradients(points) {
-        const gradients = [];
-        if (points.length < 2) return gradients;
-
-        // 隣接点間の勾配を計算
-        for (let i = 0; i < points.length - 1; i++) {
-            const current = points[i];
-            const next = points[i + 1];
-
-            const dx = next.x - current.x;
-            const dy = next.y - current.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-
-            if (distance > 0) {
-                const gradient = {
-                    start: current,
-                    end: next,
-                    strength: (next.amount - current.amount) / distance,
-                    direction: { x: dx / distance, y: dy / distance }
-                };
-                gradients.push(gradient);
-            }
-        }
-
-        return gradients;
-    }
-
-    // 社会的動態を分析
-    analyzeSocialDynamics(lifeforms) {
-        if (!lifeforms || lifeforms.length === 0) return null;
-
-        const dynamics = {
-            groups: [],
-            interactions: [],
-            hierarchy: new Map()
-        };
-
-        // グループ形成の分析
-        dynamics.groups = this.detectSocialGroups(lifeforms);
-
-        // 相互作用の分析
-        dynamics.interactions = this.analyzeSocialInteractions(lifeforms);
-
-        // 階層構造の分析
-        dynamics.hierarchy = this.analyzeSocialHierarchy(lifeforms);
-
-        return dynamics;
-    }
-
-    // 社会的グループを検出
-    detectSocialGroups(lifeforms) {
-        const groups = [];
-        const assigned = new Set();
-
-        for (const lifeform of lifeforms) {
-            if (assigned.has(lifeform.id)) continue;
-
-            const group = {
-                members: [],
-                center: { x: 0, y: 0, z: 0 },
-                cohesion: 0
-            };
-
-            // グループメンバーを探索
-            for (const other of lifeforms) {
-                if (assigned.has(other.id)) continue;
-
-                const distance = Math.sqrt(
-                    Math.pow(lifeform.position.x - other.position.x, 2) +
-                    Math.pow(lifeform.position.y - other.position.y, 2) +
-                    Math.pow(lifeform.position.z - other.position.z, 2)
-                );
-
-                if (distance < 10) { // グループ半径
-                    group.members.push(other);
-                    assigned.add(other.id);
-                }
-            }
-
-            if (group.members.length > 0) {
-                // グループの中心を計算
-                group.center = this.calculateGroupCenter(group.members);
-                // グループの凝集度を計算
-                group.cohesion = this.calculateGroupCohesion(group.members, group.center);
-                groups.push(group);
-            }
-        }
-
-        return groups;
-    }
-
-    // グループの中心を計算
-    calculateGroupCenter(members) {
-        const center = { x: 0, y: 0, z: 0 };
-        for (const member of members) {
-            center.x += member.position.x;
-            center.y += member.position.y;
-            center.z += member.position.z;
-        }
-        center.x /= members.length;
-        center.y /= members.length;
-        center.z /= members.length;
-        return center;
-    }
-
-    // グループの凝集度を計算
-    calculateGroupCohesion(members, center) {
-        let totalDistance = 0;
-        for (const member of members) {
-            const distance = Math.sqrt(
-                Math.pow(member.position.x - center.x, 2) +
-                Math.pow(member.position.y - center.y, 2) +
-                Math.pow(member.position.z - center.z, 2)
-            );
-            totalDistance += distance;
-        }
-        return 1 - (totalDistance / (members.length * 10)); // 10は最大距離
-    }
-
-    // 社会的相互作用を分析
-    analyzeSocialInteractions(lifeforms) {
-        const interactions = [];
-        for (const lifeform of lifeforms) {
-            if (lifeform.bonds) {
-                lifeform.bonds.forEach((strength, other) => {
-                    interactions.push({
-                        source: lifeform,
-                        target: other,
-                        strength: strength,
-                        type: this.determineSocialInteractionType(lifeform, other)
-                    });
-                });
-            }
-        }
-        return interactions;
-    }
-
-    // 社会的相互作用のタイプを判定
-    determineSocialInteractionType(lifeform1, lifeform2) {
-        if (lifeform1.isPredator !== lifeform2.isPredator) {
-            return 'antagonistic';
-        }
-        if (lifeform1._matingPartner === lifeform2 || lifeform2._matingPartner === lifeform1) {
-            return 'reproductive';
-        }
-        return 'cooperative';
-    }
-
-    // 社会的階層構造を分析
-    analyzeSocialHierarchy(lifeforms) {
-        const hierarchy = new Map();
-        for (const lifeform of lifeforms) {
-            const rank = this.calculateSocialRank(lifeform, lifeforms);
-            hierarchy.set(lifeform.id, rank);
-        }
-        return hierarchy;
-    }
-
-    // 社会的ランクを計算
-    calculateSocialRank(lifeform, lifeforms) {
-        let rank = 0;
-        // エネルギーレベルによるランク
-        rank += lifeform.energy * 0.3;
-        // サイズによるランク
-        rank += lifeform.size * 0.2;
-        // 社会的結合の強さによるランク
-        if (lifeform.bonds) {
-            rank += Array.from(lifeform.bonds.values()).reduce((sum, strength) => sum + strength, 0) * 0.3;
-        }
-        // 捕食者ステータスによるランク
-        if (lifeform.isPredator) {
-            rank += 0.2;
-        }
-        return Math.min(1, rank);
-    }
-
-    // 脅威を分析
-    analyzeThreats(environment, lifeforms) {
-        const threats = {
-            predators: [],
-            environmentalHazards: [],
-            competitionLevel: 0
-        };
-
-        // 捕食者の分析
-        threats.predators = lifeforms
-            .filter(l => l.isPredator)
-            .map(predator => ({
-                position: predator.position,
-                strength: predator.energy * predator.size,
-                range: predator.dna.perception * 5
-            }));
-
-        // 環境ハザードの分析
-        threats.environmentalHazards = this.detectEnvironmentalHazards(environment);
-
-        // 競争レベルの計算
-        threats.competitionLevel = this.calculateCompetitionLevel(lifeforms);
-
-        return threats;
-    }
-
-    // 環境ハザードを検出
-    detectEnvironmentalHazards(environment) {
-        const hazards = [];
-        if (!environment || !environment.grid) return hazards;
-
-        for (let x = 0; x < environment.grid.length; x++) {
-            for (let y = 0; y < environment.grid[x].length; y++) {
-                const cell = environment.grid[x][y];
-                if (cell && cell.get(METABOLIC_PRODUCTS.TOXINS)) {
-                    hazards.push({
-                        position: { x, y },
-                        type: 'toxin',
-                        intensity: cell.get(METABOLIC_PRODUCTS.TOXINS)
-                    });
-                }
-            }
-        }
-
-        return hazards;
-    }
-
-    // 競争レベルを計算
-    calculateCompetitionLevel(lifeforms) {
-        if (!lifeforms || lifeforms.length === 0) return 0;
-
-        // 生命体密度に基づく競争レベル
-        const density = lifeforms.length / (width * height);
-        // リソース競合に基づく競争レベル
-        const resourceCompetition = this.calculateResourceCompetition(lifeforms);
-
-        return Math.min(1, (density * 0.5 + resourceCompetition * 0.5));
-    }
-
-    // リソース競合を計算
-    calculateResourceCompetition(lifeforms) {
-        let competition = 0;
-        const resourceUsers = lifeforms.filter(l => !l.isPredator);
         
-        if (resourceUsers.length > 0) {
-            // 同じ領域でリソースを求める生命体の数に基づいて競合を計算
-            const territories = new Map();
-            for (const lifeform of resourceUsers) {
-                const key = `${Math.floor(lifeform.position.x/10)},${Math.floor(lifeform.position.y/10)}`;
-                territories.set(key, (territories.get(key) || 0) + 1);
-            }
-
-            // 最大の競合度を計算
-            competition = Math.max(...Array.from(territories.values())) / resourceUsers.length;
-        }
-
-        return competition;
+        // 新しいアルゴリズムを返す
+        return {
+            name: newName,
+            parameters: newParameters,
+            code: newCode,
+            parent: baseType,
+            creationTime: Date.now()
+        };
     }
-
+    
     // システム全体の更新
     update(environment, lifeforms) {
         // 最適化クールダウンの更新
         if (this.optimizationCooldown > 0) {
             this.optimizationCooldown--;
         }
-
+        
         // 定期的な最適化（低確率）
         if (this.optimizationCooldown === 0 && Math.random() < 0.05) {
             // 最適化するアルゴリズムをランダムに選択
@@ -6021,132 +4906,23 @@ class MetaprogrammingSystem {
         // デフォルトは探索
         return this.executeAlgorithm('exploration', environment, lifeforms);
     }
-
-    // 学習メカニズムの作成
-    createLearningMechanism() {
-        return {
-            experienceMemory: new Map(),
-            learningRate: this.learningRate,
-            adaptationRate: this.creativityFactor * 0.5,
-            lastUpdate: Date.now(),
-
-            learn: function(situation, action, outcome) {
-                const situationKey = JSON.stringify(this.sanitizePattern(situation));
-                const experience = this.experienceMemory.get(situationKey) || {
-                    attempts: 0,
-                    successes: 0,
-                    failurePatterns: new Set(),
-                    lastSuccess: null,
-                    adaptations: []
-                };
-
-                experience.attempts++;
-                if (outcome.success) {
-                    experience.successes++;
-                    experience.lastSuccess = Date.now();
-                    
-                    // 成功した適応を記録
-                    if (outcome.adaptation) {
-                        experience.adaptations.push({
-                            type: outcome.adaptation,
-                            timestamp: Date.now(),
-                            context: outcome.context
-                        });
-                    }
-                } else {
-                    // 失敗パターンを記録
-                    experience.failurePatterns.add(JSON.stringify({
-                        action: action,
-                        reason: outcome.failureReason,
-                        context: outcome.context
-                    }));
-                }
-
-                // 古いデータの削除（最新の100件のみ保持）
-                if (experience.adaptations.length > 100) {
-                    experience.adaptations = experience.adaptations.slice(-100);
-                }
-
-                // 学習率の動的調整
-                this.updateLearningRate(experience);
-
-                this.experienceMemory.set(situationKey, experience);
-            }.bind(this),
-
-            // 学習率の更新
-            updateLearningRate: function(experience) {
-                const recentSuccessRate = experience.attempts > 0 ? 
-                    experience.successes / experience.attempts : 0;
+    
+    // アルゴリズムの性能分析
+    analyzePerformance() {
+        const analysis = {};
+        
+        for (const [type, metrics] of Object.entries(this.performanceMetrics)) {
+            if (metrics.attempts === 0) {
+                analysis[type] = { successRate: 0, confidence: 0 };
+            } else {
+                const successRate = metrics.success / metrics.attempts;
+                const confidence = Math.min(1.0, metrics.attempts / 20); // サンプル数に基づく信頼度
                 
-                // 成功率に基づいて学習率を調整
-                if (recentSuccessRate > 0.7) {
-                    this.learningRate *= 0.95; // 高成功率なら学習率を少し下げる
-                } else if (recentSuccessRate < 0.3) {
-                    this.learningRate *= 1.05; // 低成功率なら学習率を上げる
-                }
-                
-                // 学習率の範囲を制限
-                this.learningRate = Math.max(0.01, Math.min(0.5, this.learningRate));
-            }.bind(this),
-
-            // 経験に基づく予測
-            predictOutcome: function(situation, action) {
-                const situationKey = JSON.stringify(this.sanitizePattern(situation));
-                const experience = this.experienceMemory.get(situationKey);
-                
-                if (!experience) return null;
-
-                const successRate = experience.successes / experience.attempts;
-                const timeSinceLastSuccess = Date.now() - (experience.lastSuccess || 0);
-                
-                return {
-                    expectedSuccess: successRate,
-                    confidence: Math.exp(-timeSinceLastSuccess / (1000 * 60 * 60)), // 時間経過で信頼度低下
-                    knownFailures: Array.from(experience.failurePatterns),
-                    relevantAdaptations: experience.adaptations
-                        .filter(a => Date.now() - a.timestamp < 1000 * 60 * 60) // 最近1時間の適応のみ
-                };
-            }.bind(this),
-
-            // 経験の一般化
-            generalizeExperience: function() {
-                const patterns = Array.from(this.experienceMemory.entries());
-                const generalizations = new Map();
-
-                for (const [situation, experience] of patterns) {
-                    const abstractPattern = this.abstractSituation(JSON.parse(situation));
-                    const existingGen = generalizations.get(abstractPattern) || {
-                        attempts: 0,
-                        successes: 0,
-                        adaptations: []
-                    };
-
-                    existingGen.attempts += experience.attempts;
-                    existingGen.successes += experience.successes;
-                    existingGen.adaptations = existingGen.adaptations.concat(experience.adaptations);
-
-                    generalizations.set(abstractPattern, existingGen);
-                }
-
-                return generalizations;
-            }.bind(this),
-
-            // 状況の抽象化
-            abstractSituation: function(situation) {
-                // 具体的な数値を範囲に変換
-                const abstract = {};
-                for (const [key, value] of Object.entries(situation)) {
-                    if (typeof value === 'number') {
-                        abstract[key] = Math.floor(value * 10) / 10; // 精度を下げて一般化
-                    } else if (Array.isArray(value)) {
-                        abstract[key] = value.length; // 配列の場合は要素数のみ保持
-                    } else {
-                        abstract[key] = value;
-                    }
-                }
-                return JSON.stringify(abstract);
-            }.bind(this)
-        };
+                analysis[type] = { successRate, confidence };
+            }
+        }
+        
+        return analysis;
     }
 } 
 
