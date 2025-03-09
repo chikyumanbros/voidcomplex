@@ -1,10 +1,10 @@
 document.addEventListener('DOMContentLoaded', () => {
     const canvas = document.getElementById('canvas');
-    const width = 200;
-    const height = 120;
+    const width = 300;
+    const height = 180;
     
     // ASCII文字のセット
-    const asciiChars = '☻☺☼§¤ℓϴ▪▫°∙*×÷+∷∴∵·';
+    const asciiChars = '☻█▓▒░σ▪°∙*+∷∴∵·';
     // ネットワーク関係を表す特殊文字を追加
     const networkChars = '╒╓╔╕╖╗╘╙╚╛╜╝╞╟╠╡╢╣';
     
@@ -396,6 +396,19 @@ document.addEventListener('DOMContentLoaded', () => {
             this.lastPredationAttemptTime = 0;
             this.isPredator = (this.dna?.predatory || 0) > 0.6 && (this.dna?.mobility || 0) > 0.4;
             
+            // 捕食者の場合、移動能力を強化
+            if (this.isPredator) {
+                this.dna.mobility = Math.max(0.7, this.dna.mobility);
+                this.dna.speed = Math.max(0.8, this.dna.speed);
+                // 捕食者の初期速度を上げる
+                const predatorSpeed = 0.2 + Math.random() * 0.4;
+                this.velocity = {
+                    x: Math.cos(angle) * predatorSpeed,
+                    y: Math.sin(angle) * predatorSpeed,
+                    z: (Math.random() - 0.5) * predatorSpeed * 0.5
+                };
+            }
+            
             // 生命体の色
             this.baseHue = this.calculateBaseHue();
             
@@ -483,6 +496,14 @@ document.addEventListener('DOMContentLoaded', () => {
             // 知覚範囲を計算
             const perceptionRadius = 15 * this.dna.perception;
             
+            // 捕食者の場合、捕食範囲を拡大（捕食傾向が強いほど広範囲）
+            const predationRange = this.isPredator ? 5 * (1 + this.dna.predatory * 0.5) : 0;
+            const predationSuccessRate = 0.9 * this.dna.predatory; // 0.7から0.9に増加（捕食成功率を向上）
+            const predationEnergyGain = 0.5 + (this.dna.predatory * 0.3); // 0.3から0.5に基本値を増加、係数も0.2から0.3に増加
+            
+            // 現在の時間を取得
+            const time = performance.now();
+            
             for (const other of lifeforms) {
                 if (other === this) continue;
                 
@@ -538,7 +559,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     // 捕食者の場合、被食者を探す
                     if (this.isPredator && !other.isPredator && distance < closestPreyDist) {
-                        if (this.dna.size > other.dna.size * 0.8) {
+                        // 捕食傾向が強いほど、サイズの大きな生命体も捕食対象にする
+                        const sizeThreshold = 0.8 - (this.dna.predatory * 0.3);
+                        if (this.dna.size > other.dna.size * sizeThreshold) {
                             closestPreyDist = distance;
                             closestPrey = other;
                             preyFound = true;
@@ -568,10 +591,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     // 捕食者と被食者の関係に基づく追加の力
                     if (this.isPredator && !other.isPredator) {
-                        // 捕食者は被食者に引き寄せられる
-                        steering.x += dx * 0.5;
-                        steering.y += dy * 0.5;
-                        steering.z += dz * 0.5;
+                        // 捕食傾向が強いほど、被食者に強く引き寄せられる
+                        const predatoryFactor = 0.5 + (this.dna.predatory * 0.5);
+                        steering.x += dx * predatoryFactor;
+                        steering.y += dy * predatoryFactor;
+                        steering.z += dz * predatoryFactor;
                     } else if (!this.isPredator && other.isPredator) {
                         // 被食者は捕食者から逃げる
                         steering.x -= dx;
@@ -650,13 +674,14 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // 捕食行動
             if (preyFound && closestPrey && closestPreyDist < predationRange) {
-                // クールダウン時間を20から15に短縮
-                if (time - this.lastPredationAttemptTime > 15) {
+                // 捕食傾向が強いほどクールダウン時間が短い
+                const cooldownTime = Math.max(5, 15 - (this.dna.predatory * 10));
+                if (time - this.lastPredationAttemptTime > cooldownTime) {
                     this.lastPredationAttemptTime = time;
                     
-                    // サイズ差による成功率の計算を調整（べき乗を0.8に）
-                    const sizeDifference = Math.pow(this.dna.size / closestPrey.dna.size, 0.8);
-                    const successChance = predationSuccessRate * sizeDifference;
+                    // サイズ差と捕食傾向による成功率の計算
+                    const sizeDifference = Math.pow(this.dna.size / closestPrey.dna.size, 0.7); // 0.8から0.7に変更（サイズ差の影響を軽減）
+                    const successChance = predationSuccessRate * sizeDifference * this.dna.predatory;
                     
                     if (Math.random() < successChance) {
                         // 捕食成功
@@ -665,7 +690,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         // 獲物からエネルギーを得る
                         const gainedEnergy = closestPrey.energy * predationEnergyGain;
                         this.energy += gainedEnergy;
-                        this.energy = Math.min(this.energy, 1.0);  // エネルギー上限
+                        
+                        // 捕食成功時に少量の回復効果を追加
+                        if (this.dna.regenerationRate > 0) {
+                            this.energy += 0.05 * this.dna.regenerationRate;
+                        }
+                        
+                        this.energy = Math.min(1.0, this.energy);  // エネルギー上限
                         
                         // 獲物を死亡させる
                         closestPrey.isDead = true;
@@ -1148,238 +1179,250 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             // 生存中の処理
-            // 年齢を増加
-            this.age++;
-            
-            // 時間による影響（昼夜サイクル）
-            const dayPhase = (time % 240) / 240;
-            const isNight = dayPhase > 0.5;
-            const activityMultiplier = isNight ?
-                (this.dna.nocturnality) :
-                (1 - this.dna.nocturnality);
-            
-            // 深さに基づくストレス計算
-            const depthStress = Math.abs(this.position.z - this.dna.depthPreference) / 
-                (10 * this.dna.depthTolerance);
-            
-            // 光合成によるエネルギー生成
-            if (this.dna.photosynthesis.efficiency > 0.2) {
-                // 深度に基づく効率計算
-                const depthDiff = Math.abs(this.position.z - this.dna.photosynthesis.depth.optimal);
-                const depthEfficiency = Math.max(0, 1 - (depthDiff / this.dna.photosynthesis.depth.range));
-                
-                // 時間帯による効率計算
-                const timeEfficiency = isNight ? 
-                    this.dna.photosynthesis.adaptations.nightMode : 
-                    1.0;
-                
-                // 波長効率の計算（簡易版）
-                const wavelengthEfficiency = (this.dna?.photosynthesis?.wavelengths || []).reduce(
-                    (sum, wave) => sum + (wave?.efficiency || 0), 0
-                ) / (this.dna?.photosynthesis?.wavelengths?.length || 1);
-                
-                // ストレス応答
-                const stressResponse = Math.max(0, 1 - depthStress) * 
-                    (this.dna?.photosynthesis?.adaptations?.stressResponse || 0.2);
-                
-                // 毒素生成による光合成抑制
-                const toxinInhibition = 1 - ((this.dna?.toxins?.adaptation?.productionRate || 0.1) * 0.5);
-                
-                // 総合的な光合成効率
-                const totalEfficiency = (this.dna?.photosynthesis?.efficiency || 0.2) * 
-                    depthEfficiency * 
-                    timeEfficiency * 
-                    wavelengthEfficiency * 
-                    (1 + stressResponse) *
-                    toxinInhibition;
-                
-                // エネルギー生成
-                const baseRate = 0.002;
-                this.energy += baseRate * totalEfficiency;
-            }
-            
-            // 毒素関連の処理
             if (!this.isDead) {
-                // 毒素の生成と蓄積
-                const toxinProduction = (this.dna.toxins?.adaptation?.productionRate || 0.1) * 
-                    (1 - this.energy * 0.5); // エネルギーが少ないと毒素生成が活発化
+                // エネルギー減少（捕食者はエネルギー消費が少ない）
+                const energyDecayMultiplier = this.isPredator ? 0.7 : 1.0; // 捕食者のエネルギー消費を30%削減
+                this.energy -= energyDecayRate * energyDecayMultiplier;
                 
-                // 各種毒素の強化/弱化
-                for (const toxinType of ['neural', 'cellular', 'digestive']) {
-                    const currentStrength = this.dna.toxins?.types?.[toxinType]?.strength || 0.1;
-                    const productionCost = this.dna.toxins?.types?.[toxinType]?.developmentCost || 0.3;
+                // 年齢を増加
+                this.age++;
+                
+                // 時間による影響（昼夜サイクル）
+                const dayPhase = (time % 240) / 240;
+                const isNight = dayPhase > 0.5;
+                const activityMultiplier = isNight ?
+                    (this.dna.nocturnality) :
+                    (1 - this.dna.nocturnality);
+                
+                // 深さに基づくストレス計算
+                const depthStress = Math.abs(this.position.z - this.dna.depthPreference) / 
+                    (10 * this.dna.depthTolerance);
+                
+                // 光合成によるエネルギー生成（捕食者は光合成効率が低い）
+                if (this.dna.photosynthesis.efficiency > 0.2) {
+                    // 深度に基づく効率計算
+                    const depthDiff = Math.abs(this.position.z - this.dna.photosynthesis.depth.optimal);
+                    const depthEfficiency = Math.max(0, 1 - (depthDiff / this.dna.photosynthesis.depth.range));
                     
-                    // 毒素の強化（コストを消費）
-                    if (this.energy > productionCost * 2) {
-                        if (!this.dna.toxins) this.dna.toxins = { types: {} };
-                        if (!this.dna.toxins.types) this.dna.toxins.types = {};
-                        if (!this.dna.toxins.types[toxinType]) this.dna.toxins.types[toxinType] = {};
+                    // 時間帯による効率計算
+                    const timeEfficiency = isNight ? 
+                        this.dna.photosynthesis.adaptations.nightMode : 
+                        1.0;
+                    
+                    // ストレス応答による効率計算
+                    const stressResponse = Math.max(0.5, 1 - depthStress) * 
+                        (this.dna.photosynthesis.adaptations.stressResponse || 0.5);
+                    
+                    // 総合効率
+                    const totalEfficiency = depthEfficiency * timeEfficiency * stressResponse;
+                    
+                    // 捕食者は光合成効率が低下
+                    const predatorPhotosynthesisMultiplier = this.isPredator ? 0.5 : 1.0;
+                    
+                    // 光合成によるエネルギー生成
+                    const baseRate = 0.002;
+                    this.energy += baseRate * totalEfficiency * predatorPhotosynthesisMultiplier;
+                    
+                    // 以下の重複コードを削除
+                    // const photosynthesisEnergy = 0.001 * 
+                    //     this.dna.photosynthesis.efficiency * 
+                    //     depthEfficiency * 
+                    //     timeEfficiency * 
+                    //     stressResponse * 
+                    //     predatorPhotosynthesisMultiplier;
+                    // 
+                    // this.energy += photosynthesisEnergy;
+                }
+                
+                // 毒素関連の処理
+                if (!this.isDead) {
+                    // 毒素の生成と蓄積
+                    const toxinProduction = (this.dna.toxins?.adaptation?.productionRate || 0.1) * 
+                        (1 - this.energy * 0.5); // エネルギーが少ないと毒素生成が活発化
+                    
+                    // 各種毒素の強化/弱化
+                    for (const toxinType of ['neural', 'cellular', 'digestive']) {
+                        const currentStrength = this.dna.toxins?.types?.[toxinType]?.strength || 0.1;
+                        const productionCost = this.dna.toxins?.types?.[toxinType]?.developmentCost || 0.3;
                         
-                        this.dna.toxins.types[toxinType].strength = Math.min(
-                            1.0,
-                            currentStrength + toxinProduction * 0.1
-                        );
-                        this.energy -= productionCost * toxinProduction;
-                    } else {
-                        // エネルギーが少ない場合は毒素が弱化
-                        if (this.dna.toxins?.types?.[toxinType]?.strength) {
-                            this.dna.toxins.types[toxinType].strength *= 0.99;
+                        // 毒素の強化（コストを消費）
+                        if (this.energy > productionCost * 2) {
+                            if (!this.dna.toxins) this.dna.toxins = { types: {} };
+                            if (!this.dna.toxins.types) this.dna.toxins.types = {};
+                            if (!this.dna.toxins.types[toxinType]) this.dna.toxins.types[toxinType] = {};
+                            
+                            this.dna.toxins.types[toxinType].strength = Math.min(
+                                1.0,
+                                currentStrength + toxinProduction * 0.1
+                            );
+                            this.energy -= productionCost * toxinProduction;
+                        } else {
+                            // エネルギーが少ない場合は毒素が弱化
+                            if (this.dna.toxins?.types?.[toxinType]?.strength) {
+                                this.dna.toxins.types[toxinType].strength *= 0.99;
+                            }
+                        }
+                    }
+                    
+                    // 毒素耐性の適応的変化
+                    for (const toxinType of ['neural', 'cellular', 'digestive']) {
+                        if (this.energy > 0.5) {
+                            // 高エネルギー状態では耐性が向上
+                            if (!this.dna.toxins) this.dna.toxins = { resistance: {} };
+                            if (!this.dna.toxins.resistance) this.dna.toxins.resistance = {};
+                            
+                            const currentResistance = this.dna.toxins.resistance[toxinType] || 0.1;
+                            this.dna.toxins.resistance[toxinType] = Math.min(
+                                1.0,
+                                currentResistance + 0.001
+                            );
+                        } else {
+                            // 低エネルギー状態では耐性が低下
+                            if (this.dna.toxins?.resistance?.[toxinType]) {
+                                this.dna.toxins.resistance[toxinType] *= 0.999;
+                            }
                         }
                     }
                 }
                 
-                // 毒素耐性の適応的変化
-                for (const toxinType of ['neural', 'cellular', 'digestive']) {
-                    if (this.energy > 0.5) {
-                        // 高エネルギー状態では耐性が向上
-                        if (!this.dna.toxins) this.dna.toxins = { resistance: {} };
-                        if (!this.dna.toxins.resistance) this.dna.toxins.resistance = {};
-                        
-                        const currentResistance = this.dna.toxins.resistance[toxinType] || 0.1;
-                        this.dna.toxins.resistance[toxinType] = Math.min(
-                            1.0,
-                            currentResistance + 0.001
-                        );
-                    } else {
-                        // 低エネルギー状態では耐性が低下
-                        if (this.dna.toxins?.resistance?.[toxinType]) {
-                            this.dna.toxins.resistance[toxinType] *= 0.999;
-                        }
+                // 成長
+                if (this.size < this.maxSize) {
+                    const growthRate = 0.0005 * this.dna.growthRate;
+                    this.size += growthRate;
+                    this.energy -= growthRate * 0.5;
+                }
+                
+                // エネルギー消費（効率と活動時間帯に基づく）
+                const mobilityFactor = this.dna.mobility * 0.01; // 移動能力が高いほどエネルギー消費も高い
+                this.energy -= energyDecayRate * 
+                    (1 - this.dna.efficiency * 0.01) * 
+                    activityMultiplier * 
+                    (1 + depthStress) *
+                    (1 + mobilityFactor);
+                
+                // 自然回復
+                this.energy += this.dna.regenerationRate * (1 - depthStress);
+                this.energy = Math.min(this.energy, 1.0);
+                
+                // 移動能力に応じた行動の前に物理的な制約を適用
+                if (this.dna.mobility > 0.1) {
+                    // 重力の影響を追加（より穏やかに）
+                    this.acceleration.z -= this.gravityStrength * 0.8;
+                    
+                    // 現在の速度の大きさを計算
+                    const currentSpeed = Math.sqrt(
+                        this.velocity.x * this.velocity.x +
+                        this.velocity.y * this.velocity.y +
+                        this.velocity.z * this.velocity.z
+                    );
+                    
+                    // 空気抵抗の計算（より滑らかに）
+                    if (currentSpeed > 0) {
+                        const dragForce = this.dragCoefficient * currentSpeed;
+                        const dragMultiplier = Math.max(0, 1 - dragForce / currentSpeed);
+                        this.velocity.x *= dragMultiplier;
+                        this.velocity.y *= dragMultiplier;
+                        this.velocity.z *= dragMultiplier;
                     }
-                }
-            }
-            
-            // 成長
-            if (this.size < this.maxSize) {
-                const growthRate = 0.0005 * this.dna.growthRate;
-                this.size += growthRate;
-                this.energy -= growthRate * 0.5;
-            }
-            
-            // エネルギー消費（効率と活動時間帯に基づく）
-            const mobilityFactor = this.dna.mobility * 0.01; // 移動能力が高いほどエネルギー消費も高い
-            this.energy -= energyDecayRate * 
-                (1 - this.dna.efficiency * 0.01) * 
-                activityMultiplier * 
-                (1 + depthStress) *
-                (1 + mobilityFactor);
-            
-            // 自然回復
-            this.energy += this.dna.regenerationRate * (1 - depthStress);
-            this.energy = Math.min(this.energy, 1.0);
-            
-            // 移動能力に応じた行動の前に物理的な制約を適用
-            if (this.dna.mobility > 0.1) {
-                // 重力の影響を追加（より穏やかに）
-                this.acceleration.z -= this.gravityStrength * 0.8;
-                
-                // 現在の速度の大きさを計算
-                const currentSpeed = Math.sqrt(
-                    this.velocity.x * this.velocity.x +
-                    this.velocity.y * this.velocity.y +
-                    this.velocity.z * this.velocity.z
-                );
-                
-                // 空気抵抗の計算（より滑らかに）
-                if (currentSpeed > 0) {
-                    const dragForce = this.dragCoefficient * currentSpeed;
-                    const dragMultiplier = Math.max(0, 1 - dragForce / currentSpeed);
-                    this.velocity.x *= dragMultiplier;
-                    this.velocity.y *= dragMultiplier;
-                    this.velocity.z *= dragMultiplier;
-                }
-                
-                // 既存の移動処理を継続（より滑らかに）
-                const interaction = this.interact(lifeforms, environment);
-                const boundaries = this.checkBoundaries();
-                const territory = this.defendTerritory(lifeforms);
-                
-                // 加速度の平滑化
-                const smoothAccel = {
-                    x: this.lastAcceleration.x * this.accelerationSmoothing + 
-                       (interaction.x + boundaries.x + territory.x) * (1 - this.accelerationSmoothing),
-                    y: this.lastAcceleration.y * this.accelerationSmoothing + 
-                       (interaction.y + boundaries.y + territory.y) * (1 - this.accelerationSmoothing),
-                    z: this.lastAcceleration.z * this.accelerationSmoothing + 
-                       (interaction.z + boundaries.z + territory.z) * (1 - this.accelerationSmoothing)
-                };
-                
-                // 力を適用（より滑らかに）
-                const movementMultiplier = this.dna.mobility * 
-                    (this.dna.efficiency || 0.5) * 
-                    Math.min(1.0, this.energy * 2);
-                
-                this.acceleration.x = smoothAccel.x * movementMultiplier * this.turnRate;
-                this.acceleration.y = smoothAccel.y * movementMultiplier * this.turnRate;
-                this.acceleration.z = smoothAccel.z * movementMultiplier * this.turnRate;
-                
-                // 前回の加速度を保存
-                this.lastAcceleration = smoothAccel;
-                
-                // 速度を更新（慣性を考慮）
-                this.velocity.x = this.velocity.x * this.inertia + this.acceleration.x;
-                this.velocity.y = this.velocity.y * this.inertia + this.acceleration.y;
-                this.velocity.z = this.velocity.z * this.inertia + this.acceleration.z;
-                
-                // 速度を制限（より滑らかに）
-                const speed = Math.sqrt(
-                    this.velocity.x * this.velocity.x + 
-                    this.velocity.y * this.velocity.y + 
-                    this.velocity.z * this.velocity.z
-                );
-                
-                const maxSpeed = 0.5 * this.dna.speed * this.dna.mobility;
-                
-                if (speed > maxSpeed) {
-                    const reduction = 1 - ((speed - maxSpeed) / speed) * 0.5;
-                    this.velocity.x *= reduction;
-                    this.velocity.y *= reduction;
-                    this.velocity.z *= reduction;
-                }
-                
-                // 位置を更新
-                this.position.x += this.velocity.x;
-                this.position.y += this.velocity.y;
-                this.position.z += this.velocity.z;
-                
-                // 加速度をリセット
-                this.acceleration.x = 0;
-                this.acceleration.y = 0;
-                this.acceleration.z = 0;
-            }
-            
-            // 繁殖判定
-            if (this.energy > reproductionThreshold && Math.random() < this.dna.reproductionRate * 0.05) {
-                this.reproduce(lifeforms);
-            }
-            
-            // 死亡判定
-            if (this.energy <= 0 || this.age >= maxAge) {
-                this.isDead = true;
-            }
-            
-            // 環境ノイズへの適応を更新
-            this.updateEnvironmentalAdaptation(environment);
-            
-            // 交配による特殊能力の発現
-            if (this.dna._matingOffspring) {
-                // 交配による子孫は遺伝子ハッキング能力が高い
-                if (!this.dna.toxins) this.dna.toxins = { types: {} };
-                if (!this.dna.toxins.types) this.dna.toxins.types = {};
-                if (!this.dna.toxins.types.genetic) {
-                    this.dna.toxins.types.genetic = {
-                        strength: 0.3,
-                        developmentCost: 0.4,
-                        effectRange: 2.0,
-                        mutagenicPotential: 0.4
+                    
+                    // 既存の移動処理を継続（より滑らかに）
+                    const interaction = this.interact(lifeforms, environment);
+                    const boundaries = this.checkBoundaries();
+                    const territory = this.defendTerritory(lifeforms);
+                    
+                    // 加速度の平滑化
+                    const smoothAccel = {
+                        x: this.lastAcceleration.x * this.accelerationSmoothing + 
+                           (interaction.x + boundaries.x + territory.x) * (1 - this.accelerationSmoothing),
+                        y: this.lastAcceleration.y * this.accelerationSmoothing + 
+                           (interaction.y + boundaries.y + territory.y) * (1 - this.accelerationSmoothing),
+                        z: this.lastAcceleration.z * this.accelerationSmoothing + 
+                           (interaction.z + boundaries.z + territory.z) * (1 - this.accelerationSmoothing)
                     };
+                    
+                    // 力を適用（より滑らかに）
+                    const movementMultiplier = this.dna.mobility * 
+                        (this.dna.efficiency || 0.5) * 
+                        Math.min(1.0, this.energy * 2);
+                    
+                    // 捕食者はより活発に動く
+                    const predatorBonus = this.isPredator ? 1.5 : 1.0;
+                    
+                    this.acceleration.x = smoothAccel.x * movementMultiplier * this.turnRate * predatorBonus;
+                    this.acceleration.y = smoothAccel.y * movementMultiplier * this.turnRate * predatorBonus;
+                    this.acceleration.z = smoothAccel.z * movementMultiplier * this.turnRate * predatorBonus;
+                    
+                    // 前回の加速度を保存
+                    this.lastAcceleration = smoothAccel;
+                    
+                    // 速度を更新（慣性を考慮）
+                    this.velocity.x = this.velocity.x * this.inertia + this.acceleration.x;
+                    this.velocity.y = this.velocity.y * this.inertia + this.acceleration.y;
+                    this.velocity.z = this.velocity.z * this.inertia + this.acceleration.z;
+                    
+                    // 速度を制限（より滑らかに）
+                    const speed = Math.sqrt(
+                        this.velocity.x * this.velocity.x + 
+                        this.velocity.y * this.velocity.y + 
+                        this.velocity.z * this.velocity.z
+                    );
+                    
+                    // 捕食者はより速く移動できる
+                    const maxSpeed = this.isPredator ? 
+                        0.8 * this.dna.speed * this.dna.mobility : 
+                        0.5 * this.dna.speed * this.dna.mobility;
+                    
+                    if (speed > maxSpeed) {
+                        const reduction = 1 - ((speed - maxSpeed) / speed) * 0.5;
+                        this.velocity.x *= reduction;
+                        this.velocity.y *= reduction;
+                        this.velocity.z *= reduction;
+                    }
+                    
+                    // 位置を更新
+                    this.position.x += this.velocity.x;
+                    this.position.y += this.velocity.y;
+                    this.position.z += this.velocity.z;
+                    
+                    // 加速度をリセット
+                    this.acceleration.x = 0;
+                    this.acceleration.y = 0;
+                    this.acceleration.z = 0;
                 }
                 
-                // 成長に伴い遺伝子ハッキング能力が向上
-                if (this.age > 100 && Math.random() < 0.01) {
-                    this.dna.toxins.types.genetic.strength *= 1.01;
-                    this.dna.toxins.types.genetic.mutagenicPotential *= 1.01;
-                    this.dna._geneticHackingPotential = (this.dna._geneticHackingPotential || 0.5) * 1.01;
+                // 繁殖判定
+                if (this.energy > reproductionThreshold && Math.random() < this.dna.reproductionRate * 0.05) {
+                    this.reproduce(lifeforms);
+                }
+                
+                // 死亡判定
+                if (this.energy <= 0 || this.age >= maxAge) {
+                    this.isDead = true;
+                }
+                
+                // 環境ノイズへの適応を更新
+                this.updateEnvironmentalAdaptation(environment);
+                
+                // 交配による特殊能力の発現
+                if (this.dna._matingOffspring) {
+                    // 交配による子孫は遺伝子ハッキング能力が高い
+                    if (!this.dna.toxins) this.dna.toxins = { types: {} };
+                    if (!this.dna.toxins.types) this.dna.toxins.types = {};
+                    if (!this.dna.toxins.types.genetic) {
+                        this.dna.toxins.types.genetic = {
+                            strength: 0.3,
+                            developmentCost: 0.4,
+                            effectRange: 2.0,
+                            mutagenicPotential: 0.4
+                        };
+                    }
+                    
+                    // 成長に伴い遺伝子ハッキング能力が向上
+                    if (this.age > 100 && Math.random() < 0.01) {
+                        this.dna.toxins.types.genetic.strength *= 1.01;
+                        this.dna.toxins.types.genetic.mutagenicPotential *= 1.01;
+                        this.dna._geneticHackingPotential = (this.dna._geneticHackingPotential || 0.5) * 1.01;
+                    }
                 }
             }
         }
@@ -2448,10 +2491,8 @@ document.addEventListener('DOMContentLoaded', () => {
             return 'hsl(180, 40%, 70%)';
         }
 
-        // 死体の場合は柔らかい紫色
+        // 死体の場合は分解段階に応じた色を返す
         if (lifeform.isDead) {
-            const decompositionProgress = (time - lifeform.deathTime) / lifeform.decompositionTime;
-            
             // 主要な毒素タイプを判定
             let dominantToxin = 'neural';
             let maxStrength = lifeform.postMortemToxins?.neural || 0;
@@ -2464,6 +2505,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 dominantToxin = 'digestive';
                 maxStrength = lifeform.postMortemToxins.digestive;
             }
+            
+            // 分解の進行度を計算
+            const decompositionProgress = (time - lifeform.deathTime) / lifeform.decompositionTime;
             
             // 毒素タイプに応じた色相を設定
             let hue;
@@ -2492,13 +2536,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 基本色相の計算（全体的に柔らかい色調に）
         let hue = 180; // デフォルトの青をベース
+        // 彩度と明度の初期値を設定
+        let saturation = 60;
+        let lightness = 50;
         
-        // 光合成と捕食性による色相の調整（より穏やかな変化に）
+        // 光合成と捕食性による色相の調整
         const photoWeight = lifeform.dna.photosynthesis.efficiency;
         const predWeight = lifeform.dna.predatory;
         
-        // 色相の変化を穏やかに
-        hue = 180 - (photoWeight * 60) - (predWeight * 120);
+        // 捕食者の色をより鮮明な赤に
+        if (lifeform.isPredator) {
+            hue = 0 + (predWeight * 20); // 赤色系（0-20）
+            saturation = 80 + (predWeight * 20); // 彩度を高く
+            lightness = 50 + (predWeight * 10); // 明度も調整
+        } else if (photoWeight > 0.5) {
+            // 光合成能力が高い生命体は緑系
+            hue = 90 + (photoWeight * 30); // 緑色系（90-120）
+        } else {
+            // その他は青系
+            hue = 180 + ((1 - predWeight) * 60); // 青色系（180-240）
+        }
         
         // 毒素による色相の微調整（より控えめに）
         const toxinStrength = (
@@ -2538,12 +2595,14 @@ document.addEventListener('DOMContentLoaded', () => {
             hue = (hue + 240) % 360; // 青に近づける
         }
 
-        // 彩度を下げて柔らかい印象に
-        let saturation = Math.min(60, Math.max(20,
-            30 + // ベース彩度を下げる
-            (lifeform.dna.efficiency * 15) +
-            (toxinStrength * 5)
-        ));
+        // 彩度を下げて柔らかい印象に（既に初期化されているので条件付きで上書き）
+        if (!lifeform.isPredator) {
+            saturation = Math.min(60, Math.max(20,
+                30 + // ベース彩度を下げる
+                (lifeform.dna.efficiency * 15) +
+                (toxinStrength * 5)
+            ));
+        }
         
         // 遺伝子ハッキング状態による彩度の調整
         if (lifeform._geneExpressionModifiers && Object.keys(lifeform._geneExpressionModifiers).length > 0) {
@@ -2565,14 +2624,16 @@ document.addEventListener('DOMContentLoaded', () => {
             saturation += 10; // 特化型はより鮮やかに
         }
 
-        // 明度を上げて柔らかい印象に
-        const energyFactor = lifeform.energy * 20;
-        const ageFactor = Math.max(0, 15 - (lifeform.age / maxAge) * 15);
-        let lightness = Math.min(85, Math.max(40,
-            60 + // ベース明度を上げる
-            energyFactor +
-            ageFactor
-        ));
+        // 明度を上げて柔らかい印象に（既に初期化されているので条件付きで上書き）
+        if (!lifeform.isPredator) {
+            const energyFactor = lifeform.energy * 20;
+            const ageFactor = Math.max(0, 15 - (lifeform.age / maxAge) * 15);
+            lightness = Math.min(85, Math.max(40,
+                60 + // ベース明度を上げる
+                energyFactor +
+                ageFactor
+            ));
+        }
         
         // 遺伝子ハッキング状態による明度の調整
         if (lifeform._immune_response) {
@@ -2601,7 +2662,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const deadPosition = { ...lifeforms[i].position };
                 const deadEnergy = lifeforms[i].energy;
                 
-                if (Math.random() < 0.05) {  // 1%の確率で新しい生命体が発生
+                if (Math.random() < 0.01) {  // 1%の確率で新しい生命体が発生
                     const newDna = {
                         ...lifeforms[i].dna,
                         // 突然変異を加える
@@ -3002,6 +3063,35 @@ document.addEventListener('DOMContentLoaded', () => {
     const fontHeight = Math.floor(window.innerHeight / height);
     const fontSize = Math.min(fontWidth, fontHeight);
     canvas.style.fontSize = `${fontSize}px`;
+    
+    // シミュレーションの初期化と開始
+    function init() {
+        // 初期生命体を生成（新しい関数を使用）
+        lifeforms = initializeLifeforms();
+        
+        // 環境に初期リソースを追加
+        for (let i = 0; i < width; i += 4) {
+            for (let j = 0; j < height; j += 4) {
+                environment.addResource(
+                    METABOLIC_PRODUCTS.GLUCOSE, 
+                    {x: i, y: j}, 
+                    Math.random() * 0.5
+                );
+                
+                environment.addResource(
+                    METABOLIC_PRODUCTS.OXYGEN, 
+                    {x: i, y: j}, 
+                    Math.random() * 0.5
+                );
+            }
+        }
+        
+        // レンダリング開始
+        requestAnimationFrame(render);
+    }
+    
+    // シミュレーション開始
+    init();
 }); 
 
 class EpigeneticState {
@@ -3219,4 +3309,54 @@ class EvolutionaryLearning {
         });
         return fitness;
     }
+} 
+
+// 初期生命体の生成
+function initializeLifeforms() {
+    const lifeforms = [];
+    
+    // 捕食者と非捕食者のバランスを調整
+    const predatorRatio = 0.3; // 30%を捕食者に
+    
+    // ローカルスコープでinitialLifeCountを参照するのではなく、直接値を使用
+    const lifeformCount = 100; // initialLifeCountの値を直接指定
+    
+    for (let i = 0; i < lifeformCount; i++) {
+        // 捕食者かどうかを決定
+        const isPredator = Math.random() < predatorRatio;
+        
+        // DNAを生成
+        const dna = {
+            // 基本的な特性
+            speed: 0.5 + Math.random() * 0.5,
+            efficiency: 0.7 + Math.random() * 0.4,
+            perception: 0.6 + Math.random() * 0.6,
+            foodAttraction: 0.8 + Math.random() * 0.8,
+            socialBehavior: Math.random() * 2 - 1,
+            reproductionRate: 0.3 + Math.random() * 0.7,
+            // 捕食者の場合は捕食傾向を強化
+            predatory: isPredator ? 0.7 + Math.random() * 0.3 : Math.random() * 0.5,
+            size: 0.3 + Math.random() * 0.7,
+            
+            // その他の特性は通常通り
+            // ... existing code ...
+        };
+        
+        // 捕食者の場合は移動能力も強化
+        if (isPredator) {
+            dna.mobility = 0.7 + Math.random() * 0.3;
+        } else {
+            dna.mobility = Math.random();
+        }
+        
+        // 生命体を生成
+        const x = Math.random() * width;
+        const y = Math.random() * height;
+        const z = (Math.random() * 20) - 10;
+        const energy = 0.8 + Math.random() * 0.2;
+        
+        lifeforms.push(new Lifeform(x, y, z, energy, dna));
+    }
+    
+    return lifeforms;
 } 
