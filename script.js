@@ -1,12 +1,24 @@
+// グローバル変数としてサイズを定義
+const width = 160;  // 画面の横幅
+const height = 90;  // 画面の縦幅（16:9の比率に近づける）
+// グローバル変数としてlifeformsを宣言
+let lifeforms = [];
+// グローバル変数としてenvironmentを宣言
+let environment;
+
+// グローバル変数として追加
+const initialLifeCount = 50;  // 初期生命体数
+const maxLifeforms = 500;     // 最大生命体数
+let time = 0;                 // シミュレーション時間
+
 document.addEventListener('DOMContentLoaded', () => {
+ 
     const canvas = document.getElementById('canvas');
-    const width = 350;
-    const height = 180;
     
     // ASCII文字のセット
     const asciiChars = '☻█▓▒░σ▪°∙*+∷∴∵·';
     // ネットワーク関係を表す特殊文字を追加
-    const networkChars = '╒╓╔╕╖╗╘╙╚╛╜╝╞╟╠╡╢╣';
+    const networkChars = '╒╓╔╕╖╗╘╙╚╛╜╝';
     
     // 代謝産物の定義
     const METABOLIC_PRODUCTS = {
@@ -167,11 +179,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // 環境インスタンスを作成（ここで初期化）
-    const environment = new Environment();
+    environment = new Environment();
     
     // ライフシミュレーションのパラメータ
-    const initialLifeCount = 100;
-    const maxLifeforms = 400;
     const energyDecayRate = 0.001;
     const reproductionThreshold = 0.6;
     const reproductionCost = 0.15;
@@ -2335,141 +2345,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // 生命体の初期化
-    const lifeforms = [];
-    
-    // 様々なタイプの生命体を生成
-    for (let i = 0; i < initialLifeCount; i++) {
-        const dna = {
-            // 初期生命体生成時の特性設定（より原始的な特性に）
-            photosynthesis: {
-                efficiency: 0.2 + Math.random() * 0.2,  // 基礎的な光合成能力
-                depth: {
-                    optimal: (Math.random() * 10) - 5,        // より狭い深度範囲
-                    range: 0.2 + Math.random() * 0.3        // 低い深度耐性
-                },
-                wavelengths: [
-                    // 可視光域での光合成効率
-                    { min: 400, max: 500, efficiency: Math.random() },  // 青色光
-                    { min: 500, max: 600, efficiency: Math.random() },  // 緑色光
-                    { min: 600, max: 700, efficiency: Math.random() }   // 赤色光
-                ],
-                adaptations: {
-                    nightMode: Math.random() * 0.3,     // 夜間の光合成効率
-                    stressResponse: Math.random() * 0.5  // ストレス下での効率
-                }
-            },
-            toxins: {
-                types: {
-                    neural: {          // 神経毒
-                        strength: 0.1 + Math.random() * 0.2,
-                        developmentCost: 0.3,
-                        effectRange: 2 + Math.random() * 3
-                    },
-                    cellular: {        // 細胞毒
-                        strength: 0.1 + Math.random() * 0.2,
-                        developmentCost: 0.4,
-                        effectRange: 1 + Math.random() * 2
-                    },
-                    digestive: {       // 消化器毒
-                        strength: 0.1 + Math.random() * 0.2,
-                        developmentCost: 0.2,
-                        effectRange: 1.5 + Math.random() * 2
-                    },
-                    genetic: {         // 遺伝子操作毒素（新規）
-                        strength: 0.05 + Math.random() * 0.15,
-                        developmentCost: 0.5,
-                        effectRange: 1 + Math.random() * 1.5,
-                        mutagenicPotential: Math.random() * 0.3  // 突然変異を引き起こす能力
-                    }
-                },
-                resistance: {
-                    neural: 0.1 + Math.random() * 0.2,
-                    cellular: 0.1 + Math.random() * 0.2,
-                    digestive: 0.1 + Math.random() * 0.2,
-                    genetic: 0.05 + Math.random() * 0.15  // 初期値は低め
-                },
-                adaptation: {
-                    productionRate: Math.random() * 0.3,    // 毒素生成速度
-                    storageCapacity: 0.5 + Math.random(),   // 毒素貯蔵能力
-                    releaseControl: Math.random()           // 毒素放出の制御能力
-                }
-            },
-            geneNetwork: {
-                photosynthesis: {
-                    enhancedBy: ['efficiency', 'regenerationRate'],
-                    suppressedBy: ['toxins.adaptation.productionRate'],
-                    influences: ['energy', 'growth']
-                },
-                toxins: {
-                    enhancedBy: ['efficiency', 'size'],
-                    suppressedBy: ['photosynthesis.efficiency'],
-                    influences: ['predation', 'defense']
-                }
-            },
-            mobility: 0.3 + Math.random() * 0.2,               // 基礎的な移動能力
-            growthRate: 0.1 + Math.random() * 0.4, // 成長速度
-            size: 0.2 + Math.random() * 0.2,                  // 小さめのサイズ
-            speed: 0.3 + Math.random() * 0.2,                 // 基礎的な速度
-            efficiency: 0.4 + Math.random() * 0.2,            // 基礎的な効率
-            perception: 0.3 + Math.random() * 0.2,            // 基礎的な知覚能力
-            foodAttraction: 0.4 + Math.random() * 0.2,        // 基礎的な食物への誘引
-            socialBehavior: Math.random() * 0.4 - 0.2,        // より中立的な社会性
-            reproductionRate: 0.2 + Math.random() * 0.2,      // 控えめな繁殖率
-            separationWeight: 0.3 + Math.random() * 0.2,
-            alignmentWeight: 0.3 + Math.random() * 0.2,
-            cohesionWeight: 0.3 + Math.random() * 0.2,
-            depthPreference: (Math.random() * 10) - 5,        // より狭い深度範囲
-            depthTolerance: 0.2 + Math.random() * 0.2,        // 低い深度耐性
-            regenerationRate: Math.random() * 0.05,           // 低い回復率
-            offspringCount: 1,                                // 単純な繁殖数
-            parentalCare: 0.1 + Math.random() * 0.2,         // 最小限の子育て
-            nocturnality: 0.4 + Math.random() * 0.2,         // より中立的な活動時間
-            territoriality: Math.random() * 0.2,              // 低い縄張り性
-            
-            // DNAに以下のような特性を追加
-            resourceExchange: {
-                giveRate: Math.random(),      // リソースを提供する傾向
-                receiveRate: Math.random(),   // リソースを受け取る傾向
-                exchangeRange: Math.random(), // 交換可能な範囲
-                exchangeType: {              // 交換可能なリソースタイプ
-                    energy: Math.random(),
-                    nutrients: Math.random(),
-                    protection: Math.random()
-                }
-            },
-            
-            metabolicPathways: {
-                wasteProducts: [],           // 代謝産物（他の生物のリソースになりうる）
-                requiredResources: [         // 必要な資源の初期設定
-                    METABOLIC_PRODUCTS.GLUCOSE,
-                    METABOLIC_PRODUCTS.OXYGEN
-                ],
-                byproducts: []              // 副産物（他の生物に有益または有害）
-            },
-            // flockingBehaviorの初期化
-            flockingBehavior: {
-                separation: 0.4 + Math.random() * 0.2,
-                alignment: 0.4 + Math.random() * 0.2,
-                cohesion: 0.4 + Math.random() * 0.2
-            },
-        };
-        
-        // 生命体のインスタンス生成後、flockingBehaviorを確実に初期化
-        const lifeform = new Lifeform(undefined, undefined, undefined, undefined, dna);
-        
-        // updateBehaviorの初期化をスキップするか、より安全なバージョンを使用
-        // lifeform.updateBehavior([]); // この行を削除または修正
-
-        // 代わりに、flockingBehaviorを直接初期化
-        lifeform.dna.flockingBehavior = {
-            separation: lifeform.calculateAdaptiveSeparation(),
-            alignment: lifeform.calculateAdaptiveAlignment(),
-            cohesion: lifeform.calculateAdaptiveCohesion()
-        };
-        
-        lifeforms.push(lifeform);
-    }
     
     // Z-bufferを初期化
     function initZBuffer() {
@@ -2486,9 +2361,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // 生命体の状態に基づいて色を計算
     function getColor(lifeform) {
-        // 生命体がnullまたはundefinedの場合のデフォルト色（柔らかい青）
+        // 生命体がnullまたはundefinedの場合のデフォルト色（より柔らかい青に）
         if (!lifeform || !lifeform.dna) {
-            return 'hsl(180, 40%, 70%)';
+            return 'hsl(180, 30%, 75%)';
         }
 
         // 死体の場合は分解段階に応じた色を返す
@@ -2509,52 +2384,73 @@ document.addEventListener('DOMContentLoaded', () => {
             // 分解の進行度を計算
             const decompositionProgress = (time - lifeform.deathTime) / lifeform.decompositionTime;
             
-            // 毒素タイプに応じた色相を設定
+            // 毒素タイプに応じた色相を設定（より落ち着いた色に）
             let hue;
             switch (dominantToxin) {
                 case 'neural':
-                    hue = 300; // 紫色（神経毒）
+                    hue = 280; // より落ち着いた紫色
                     break;
                 case 'cellular':
-                    hue = 0; // 赤色（細胞毒）
+                    hue = 15; // より落ち着いた赤褐色
                     break;
                 case 'digestive':
-                    hue = 60; // 黄色（消化器毒）
+                    hue = 45; // より落ち着いた黄土色
                     break;
                 default:
-                    hue = 270;
+                    hue = 260; // より落ち着いた紫色
             }
             
-            // 毒素の強さに応じた彩度
-            const saturation = Math.min(60, 20 + (maxStrength * 40));
+            // 毒素の強さに応じた彩度（より控えめに）
+            const saturation = Math.min(40, 15 + (maxStrength * 25));
             
-            // 分解の進行に応じた明度
-            const lightness = Math.max(40, 70 - (decompositionProgress * 30));
+            // 分解の進行に応じた明度（より落ち着いた明度に）
+            const lightness = Math.max(35, 65 - (decompositionProgress * 25));
             
             return `hsl(${hue}, ${Math.floor(saturation)}%, ${Math.floor(lightness)}%)`;
         }
 
-        // 基本色相の計算（全体的に柔らかい色調に）
-        let hue = 180; // デフォルトの青をベース
-        // 彩度と明度の初期値を設定
-        let saturation = 60;
-        let lightness = 50;
+        // 基本色相の計算（全体的により落ち着いた色調に）
+        let hue = 190; // デフォルトをより落ち着いた青に
+        // 彩度と明度の初期値を設定（より控えめに）
+        let saturation = 35;
+        let lightness = 60;
         
         // 光合成と捕食性による色相の調整
         const photoWeight = lifeform.dna.photosynthesis.efficiency;
         const predWeight = lifeform.dna.predatory;
         
-        // 捕食者の色をより鮮明な赤に
+        // 代謝経路の影響を追加（より控えめに）
+        const metabolicComplexity = (lifeform.dna.metabolicPathways?.requiredResources?.length || 0) / 3;
+        const metabolicHue = metabolicComplexity * 15;
+        
+        // リソース交換能力の影響を追加（より控えめに）
+        const resourceExchangeEfficiency = 
+            (lifeform.dna.resourceExchange?.giveRate || 0) +
+            (lifeform.dna.resourceExchange?.receiveRate || 0);
+        const exchangeHue = resourceExchangeEfficiency * 10;
+        
+        // 深度設定の影響を追加（より控えめに）
+        const depthEffect = (lifeform.dna.depthPreference || 0) / 10;
+        const depthHue = Math.abs(depthEffect) * 20;
+        
+        // 夜行性の影響を追加
+        const nocturnalEffect = lifeform.dna.nocturnality || 0;
+        
+        // 捕食者の色をより落ち着いた赤に
         if (lifeform.isPredator) {
-            hue = 0 + (predWeight * 20); // 赤色系（0-20）
-            saturation = 80 + (predWeight * 20); // 彩度を高く
-            lightness = 50 + (predWeight * 10); // 明度も調整
+            hue = (15 + (predWeight * 15) + metabolicHue + exchangeHue) % 360;
+            saturation = 45 + (predWeight * 15);
+            lightness = 55 + (predWeight * 5) - (nocturnalEffect * 15);
         } else if (photoWeight > 0.5) {
-            // 光合成能力が高い生命体は緑系
-            hue = 90 + (photoWeight * 30); // 緑色系（90-120）
+            // 光合成能力が高い生命体はより落ち着いた緑系
+            hue = (95 + (photoWeight * 20) + metabolicHue + depthHue) % 360;
+            saturation = 35 + (Math.abs(depthEffect) * 15);
+            lightness = 60 + (photoWeight * 10) - (nocturnalEffect * 10);
         } else {
-            // その他は青系
-            hue = 180 + ((1 - predWeight) * 60); // 青色系（180-240）
+            // その他はより落ち着いた青系
+            hue = (190 + ((1 - predWeight) * 30) + exchangeHue + depthHue) % 360;
+            saturation = 30 + (resourceExchangeEfficiency * 20);
+            lightness = 65 - (nocturnalEffect * 15);
         }
         
         // 毒素による色相の微調整（より控えめに）
@@ -2563,89 +2459,42 @@ document.addEventListener('DOMContentLoaded', () => {
             (lifeform.dna.toxins?.types?.cellular?.strength || 0) +
             (lifeform.dna.toxins?.types?.digestive?.strength || 0)
         ) / 3;
-        hue += toxinStrength * 20;
+        hue += toxinStrength * 10;
 
-        // 遺伝子ハッキングの視覚的表現
+        // 遺伝子ハッキングの視覚的表現（より控えめに）
         if (lifeform._geneExpressionModifiers && Object.keys(lifeform._geneExpressionModifiers).length > 0) {
-            // 遺伝子発現が変化している場合、色に特殊効果を追加
-            hue += 30; // 色相をシフト（より緑がかった色に）
+            hue += 15;
+            saturation += 10;
         }
         
         if (lifeform._immune_response) {
-            // 免疫応答中は防御的な色に
-            hue -= 40; // より青みがかった色に
+            hue -= 20;
+            saturation += 5;
         }
         
         if (lifeform._acquiredGenes && lifeform._acquiredGenes.length > 0) {
-            // 遺伝子を獲得した生命体は特殊な色に
             const recentAcquisition = lifeform._acquiredGenes.some(g => time - g.time < 100);
             if (recentAcquisition) {
-                hue += 60; // より黄色みがかった色に
+                hue += 30;
+                saturation += 10;
             }
         }
         
-        // 攻撃/防御特化の視覚的表現
+        // 攻撃/防御特化の視覚的表現（より控えめに）
         if (lifeform.dna._offensiveAdaptations) {
-            // 攻撃特化は赤みがかった色に
-            hue = (hue + 0) % 360; // 赤に近づける
+            hue = (hue + 15) % 360;
         }
         
         if (lifeform.dna._defensiveAdaptations) {
-            // 防御特化は青みがかった色に
-            hue = (hue + 240) % 360; // 青に近づける
+            hue = (hue + 195) % 360;
         }
 
-        // 彩度を下げて柔らかい印象に（既に初期化されているので条件付きで上書き）
-        if (!lifeform.isPredator) {
-            saturation = Math.min(60, Math.max(20,
-                30 + // ベース彩度を下げる
-                (lifeform.dna.efficiency * 15) +
-                (toxinStrength * 5)
-            ));
-        }
-        
-        // 遺伝子ハッキング状態による彩度の調整
-        if (lifeform._geneExpressionModifiers && Object.keys(lifeform._geneExpressionModifiers).length > 0) {
-            saturation += 15; // より鮮やかに
-        }
-        
-        if (lifeform._immune_response) {
-            saturation += 10; // 免疫応答中はより鮮やかに
-        }
-        
-        if (lifeform._acquiredGenes && lifeform._acquiredGenes.length > 0) {
-            const recentAcquisition = lifeform._acquiredGenes.some(g => time - g.time < 100);
-            if (recentAcquisition) {
-                saturation += 20; // 遺伝子獲得直後はより鮮やかに
-            }
-        }
-        
-        if (lifeform.dna._offensiveAdaptations || lifeform.dna._defensiveAdaptations) {
-            saturation += 10; // 特化型はより鮮やかに
-        }
-
-        // 明度を上げて柔らかい印象に（既に初期化されているので条件付きで上書き）
-        if (!lifeform.isPredator) {
-            const energyFactor = lifeform.energy * 20;
-            const ageFactor = Math.max(0, 15 - (lifeform.age / maxAge) * 15);
-            lightness = Math.min(85, Math.max(40,
-                60 + // ベース明度を上げる
-                energyFactor +
-                ageFactor
-            ));
-        }
-        
-        // 遺伝子ハッキング状態による明度の調整
-        if (lifeform._immune_response) {
-            lightness -= 10; // 免疫応答中はやや暗く
-        }
-        
-        if (lifeform._acquiredGenes && lifeform._acquiredGenes.length > 0) {
-            const recentAcquisition = lifeform._acquiredGenes.some(g => time - g.time < 100);
-            if (recentAcquisition) {
-                lightness += 10; // 遺伝子獲得直後は明るく
-            }
-        }
+        // 明度の調整（より落ち着いた範囲に）
+        const energyFactor = lifeform.energy * 15;
+        const ageFactor = Math.max(0, 10 - (lifeform.age / maxAge) * 10);
+        lightness = Math.min(80, Math.max(45,
+            lightness + energyFactor + ageFactor
+        ));
 
         return `hsl(${Math.floor(hue)}, ${Math.floor(saturation)}%, ${Math.floor(lightness)}%)`;
     }
@@ -2978,7 +2827,10 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log(`Time: ${time}, Lifeforms: ${lifeforms.length} (Predators: ${predatorCount}, Prey: ${preyCount})`);
         }
         
-        requestAnimationFrame(render);
+        // FPS制限を実装（30FPS）
+        setTimeout(() => {
+            requestAnimationFrame(render);
+        }, 1000 / 10); // 30FPSに制限
     }
     
     // HSL色をRGBに変換するヘルパー関数
@@ -3064,30 +2916,204 @@ document.addEventListener('DOMContentLoaded', () => {
     const fontSize = Math.min(fontWidth, fontHeight);
     canvas.style.fontSize = `${fontSize}px`;
     
-    // シミュレーションの初期化と開始
     function init() {
-        // 初期生命体を生成（新しい関数を使用）
-        lifeforms = initializeLifeforms(width, height);
+        // 環境が初期化されていない場合は初期化
+        if (!environment) {
+            environment = new Environment();
+        }
+        
+        // 初期生命体を生成
+        lifeforms = initializeLifeforms();
         
         // 環境に初期リソースを追加
-        for (let i = 0; i < width; i += 4) {
-            for (let j = 0; j < height; j += 4) {
-                environment.addResource(
-                    METABOLIC_PRODUCTS.GLUCOSE, 
-                    {x: i, y: j}, 
-                    Math.random() * 0.5
-                );
-                
-                environment.addResource(
-                    METABOLIC_PRODUCTS.OXYGEN, 
-                    {x: i, y: j}, 
-                    Math.random() * 0.5
-                );
+        for (let i = 0; i < width; i++) {
+            for (let j = 0; j < height; j++) {
+                // ランダムな確率で栄養素を配置（確率を15%から5%に大幅減少）
+                if (Math.random() < 0.05) {  // 5%の確率で配置
+                    // グルコースの量をさらに減少（0.3から0.15に）
+                    const glucoseAmount = Math.max(0, 
+                        (Math.random() + Math.random() + Math.random()) / 3 * 0.15
+                    );
+                    
+                    // 酸素の量も同様に減少
+                    const oxygenAmount = Math.max(0,
+                        (Math.random() + Math.random() + Math.random()) / 3 * 0.15
+                    );
+                    
+                    // 最小閾値をさらに下げる
+                    if (glucoseAmount > 0.02) {
+                        environment.addResource(
+                            METABOLIC_PRODUCTS.GLUCOSE,
+                            {x: i, y: j},
+                            glucoseAmount
+                        );
+                    }
+                    
+                    if (oxygenAmount > 0.02) {
+                        environment.addResource(
+                            METABOLIC_PRODUCTS.OXYGEN,
+                            {x: i, y: j},
+                            oxygenAmount
+                        );
+                    }
+                }
+            }
+        }
+        
+        // クラスター数をさらに減少させ、サイズも縮小
+        for (let cluster = 0; cluster < 2; cluster++) {  // 3から2に減少
+            const centerX = Math.random() * width;
+            const centerY = Math.random() * height;
+            const radius = 2 + Math.random() * 4;  // 半径を3-10から2-6に減少
+            
+            for (let i = -radius; i <= radius; i++) {
+                for (let j = -radius; j <= radius; j++) {
+                    const x = Math.floor(centerX + i);
+                    const y = Math.floor(centerY + j);
+                    
+                    if (x >= 0 && x < width && y >= 0 && y < height) {
+                        const dist = Math.sqrt(i * i + j * j);
+                        if (dist <= radius) {
+                            const factor = 1 - (dist / radius);
+                            environment.addResource(
+                                METABOLIC_PRODUCTS.GLUCOSE,
+                                {x, y},
+                                factor * 0.15 * Math.random()  // 0.3から0.15に減少
+                            );
+                            environment.addResource(
+                                METABOLIC_PRODUCTS.OXYGEN,
+                                {x, y},
+                                factor * 0.15 * Math.random()  // 0.3から0.15に減少
+                            );
+                        }
+                    }
+                }
             }
         }
         
         // レンダリング開始
         requestAnimationFrame(render);
+    }
+    
+    // 生命体の初期化関数
+    function initializeLifeforms() {
+        const newLifeforms = [];  // 新しい配列を作成
+        
+        // 捕食者と非捕食者のバランスを調整
+        const predatorRatio = 0.3; // 30%を捕食者に
+        
+        // 生命体の数を指定
+        const lifeformCount = 50;
+        
+        for (let i = 0; i < lifeformCount; i++) {
+            // 捕食者かどうかを決定
+            const isPredator = Math.random() < predatorRatio;
+            
+            // DNAを生成（完全な形で）
+            const dna = {
+                // 基本的な特性
+                speed: 0.5 + Math.random() * 0.5,
+                efficiency: 0.7 + Math.random() * 0.4,
+                perception: 0.6 + Math.random() * 0.6,
+                foodAttraction: 0.8 + Math.random() * 0.8,
+                socialBehavior: Math.random() * 2 - 1,
+                reproductionRate: 0.3 + Math.random() * 0.7,
+                predatory: isPredator ? 0.7 + Math.random() * 0.3 : Math.random() * 0.5,
+                size: 0.3 + Math.random() * 0.7,
+                
+                // 光合成システム（必須）
+                photosynthesis: {
+                    efficiency: 0.2 + Math.random() * 0.2,
+                    depth: {
+                        optimal: (Math.random() * 10) - 5,
+                        range: 0.2 + Math.random() * 0.3
+                    },
+                    wavelengths: [
+                        { min: 400, max: 500, efficiency: Math.random() },
+                        { min: 500, max: 600, efficiency: Math.random() },
+                        { min: 600, max: 700, efficiency: Math.random() }
+                    ],
+                    adaptations: {
+                        nightMode: Math.random() * 0.3,
+                        stressResponse: Math.random() * 0.5
+                    }
+                },
+                
+                // 毒素システム
+                toxins: {
+                    types: {
+                        neural: {
+                            strength: 0.1 + Math.random() * 0.2,
+                            developmentCost: 0.3,
+                            effectRange: 2 + Math.random() * 3
+                        },
+                        cellular: {
+                            strength: 0.1 + Math.random() * 0.2,
+                            developmentCost: 0.4,
+                            effectRange: 1 + Math.random() * 2
+                        },
+                        digestive: {
+                            strength: 0.1 + Math.random() * 0.2,
+                            developmentCost: 0.2,
+                            effectRange: 1.5 + Math.random() * 2
+                        }
+                    },
+                    resistance: {
+                        neural: 0.1 + Math.random() * 0.2,
+                        cellular: 0.1 + Math.random() * 0.2,
+                        digestive: 0.1 + Math.random() * 0.2
+                    },
+                    adaptation: {
+                        productionRate: Math.random() * 0.3,
+                        storageCapacity: 0.5 + Math.random(),
+                        releaseControl: Math.random()
+                    }
+                },
+                
+                // その他の必須属性
+                mobility: isPredator ? 0.7 + Math.random() * 0.3 : Math.random(),
+                growthRate: 0.1 + Math.random() * 0.4,
+                separationWeight: 0.3 + Math.random() * 0.2,
+                alignmentWeight: 0.3 + Math.random() * 0.2,
+                cohesionWeight: 0.3 + Math.random() * 0.2,
+                depthPreference: (Math.random() * 10) - 5,
+                depthTolerance: 0.2 + Math.random() * 0.2,
+                regenerationRate: Math.random() * 0.05,
+                offspringCount: 1,
+                parentalCare: 0.1 + Math.random() * 0.2,
+                nocturnality: 0.4 + Math.random() * 0.2,
+                territoriality: Math.random() * 0.2
+            };
+            
+            // 生命体を生成
+            // 中央付近に集中して配置
+            const centerX = width / 2;
+            const centerY = height / 2;
+            const radius = 10; // 集中エリアの半径
+            
+            // 捕食者と非捕食者で異なる配置を行う
+            let x, y;
+            if (isPredator) {
+                // 捕食者は外周に配置
+                const angle = (Math.PI * 2 * i) / lifeformCount;
+                x = centerX + Math.cos(angle) * radius;
+                y = centerY + Math.sin(angle) * radius;
+            } else {
+                // 非捕食者は中心付近にランダムに配置
+                const angle = Math.random() * Math.PI * 2;
+                const distance = Math.random() * (radius * 0.6); // 中心から60%以内の範囲
+                x = centerX + Math.cos(angle) * distance;
+                y = centerY + Math.sin(angle) * distance;
+            }
+            
+            // z座標は少し狭い範囲に
+            const z = (Math.random() * 10) - 5;
+            const energy = 0.8 + Math.random() * 0.2;
+            
+            newLifeforms.push(new Lifeform(x, y, z, energy, dna));
+        }
+        
+        return newLifeforms;
     }
     
     // シミュレーション開始
@@ -3311,52 +3337,3 @@ class EvolutionaryLearning {
     }
 } 
 
-// 初期生命体の生成
-function initializeLifeforms(width, height) {
-    const lifeforms = [];
-    
-    // 捕食者と非捕食者のバランスを調整
-    const predatorRatio = 0.3; // 30%を捕食者に
-    
-    // ローカルスコープでinitialLifeCountを参照するのではなく、直接値を使用
-    const lifeformCount = 100; // initialLifeCountの値を直接指定
-    
-    for (let i = 0; i < lifeformCount; i++) {
-        // 捕食者かどうかを決定
-        const isPredator = Math.random() < predatorRatio;
-        
-        // DNAを生成
-        const dna = {
-            // 基本的な特性
-            speed: 0.5 + Math.random() * 0.5,
-            efficiency: 0.7 + Math.random() * 0.4,
-            perception: 0.6 + Math.random() * 0.6,
-            foodAttraction: 0.8 + Math.random() * 0.8,
-            socialBehavior: Math.random() * 2 - 1,
-            reproductionRate: 0.3 + Math.random() * 0.7,
-            // 捕食者の場合は捕食傾向を強化
-            predatory: isPredator ? 0.7 + Math.random() * 0.3 : Math.random() * 0.5,
-            size: 0.3 + Math.random() * 0.7,
-            
-            // その他の特性は通常通り
-            // ... existing code ...
-        };
-        
-        // 捕食者の場合は移動能力も強化
-        if (isPredator) {
-            dna.mobility = 0.7 + Math.random() * 0.3;
-        } else {
-            dna.mobility = Math.random();
-        }
-        
-        // 生命体を生成
-        const x = Math.random() * width;
-        const y = Math.random() * height;
-        const z = (Math.random() * 20) - 10;
-        const energy = 0.8 + Math.random() * 0.2;
-        
-        lifeforms.push(new Lifeform(x, y, z, energy, dna));
-    }
-    
-    return lifeforms;
-} 
