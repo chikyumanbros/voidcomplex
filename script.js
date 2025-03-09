@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     const canvas = document.getElementById('canvas');
-    const width = 300;
+    const width = 350;
     const height = 180;
     
     // ASCII文字のセット
@@ -3067,7 +3067,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // シミュレーションの初期化と開始
     function init() {
         // 初期生命体を生成（新しい関数を使用）
-        lifeforms = initializeLifeforms();
+        lifeforms = initializeLifeforms(width, height);
         
         // 環境に初期リソースを追加
         for (let i = 0; i < width; i += 4) {
@@ -3312,7 +3312,7 @@ class EvolutionaryLearning {
 } 
 
 // 初期生命体の生成
-function initializeLifeforms() {
+function initializeLifeforms(width, height) {
     const lifeforms = [];
     
     // 捕食者と非捕食者のバランスを調整
