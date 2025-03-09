@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASCII Void Model</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <style>
+        @font-face {
+            font-family: 'WebPlus_IBM_CGA';
+            src: url('WebPlus_IBM_CGA.woff') format('woff');
+            font-weight: normal;
+            font-style: normal;
+        }
+        
+        body {
+            background-color: #0a0a1a; /* 深い青紫色の背景 */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+        
+        #canvas {
+            white-space: pre;
+            font-size: 10px;
+            line-height: 1;
+            text-align: center;
+            letter-spacing: 0; /* 文字間隔を調整 */
+            font-family: 'WebPlus_IBM_CGA', 'Noto Sans Mono', 'DejaVu Sans Mono', 'Consolas', monospace;
+            color: #4da6ff; /* 基本の青色 */
+            mix-blend-mode: screen; /* ブレンドモードで光の効果を強調 */
+        }
+        
+        /* キャンバスコンテナ */
+        .canvas-container {
+            position: relative;
+            z-index: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="canvas-container">
+        <div id="canvas"></div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html> 
