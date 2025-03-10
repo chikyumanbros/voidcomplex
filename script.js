@@ -1,201 +1,53 @@
-// グローバル変数としてサイズを定義
-const width = 160;  // 画面の横幅
-const height = 90;  // 画面の縦幅（16:9の比率に近づける）
-// グローバル変数としてlifeformsを宣言
-let lifeforms = [];
-// グローバル変数としてenvironmentを宣言
-let environment;
-// リスタート用の変数を追加
-let restartTimer = 0;
-const RESTART_DELAY = 50; // 30秒後にリスタート（10FPSなので300フレーム）
-
-// グローバル変数として追加
-const initialLifeCount = 50;  // 初期生命体数
-const maxLifeforms = 500;     // 最大生命体数
-let time = 0;                 // シミュレーション時間
-
 document.addEventListener('DOMContentLoaded', () => {
- 
     const canvas = document.getElementById('canvas');
+    // 幅と高さの比率を1:1に近づける（正方形のグリッドになるように）
+    const width = 320;
+    const height = 160;
     
-    // ASCII文字のセット
-    const asciiChars = '☻█▓▒░σ▪°∙*+∷∴∵·';
-    // ネットワーク関係を表す特殊文字を追加
-    const networkChars = '╒╓╔╕╖╗╘╙╚╛╜╝';
-    
-    // 代謝産物の定義
-    const METABOLIC_PRODUCTS = {
-        OXYGEN: 'oxygen',
-        GLUCOSE: 'glucose',
-        AMINO_ACIDS: 'amino_acids',
-        WASTE: 'waste',
-        TOXINS: 'toxins'
-    };
-    
-    // 環境クラスの定義
-    class Environment {
-        constructor() {
-            this.resources = new Map();
-            this.grid = Array(width).fill().map(() => 
-                Array(height).fill().map(() => new Map())
-            );
-            
-            // システムリソースの状態を追加
-            this.systemState = {
-                cpuLoad: 0,
-                memoryUsage: 0,
-                networkLatency: 0,
-                lastUpdate: Date.now()
-            };
-            
-            // システムノイズの影響係数
-            this.noiseFactors = {
-                temperature: 0.2,    // CPU負荷は温度に影響
-                turbulence: 0.15,    // メモリ使用率は環境の乱流に影響
-                visibility: 0.25,    // ネットワークレイテンシーは視界に影響
-                resourceDecay: 0.1   // 全体的なリソース減衰率に影響
-            };
-            
-            // システム状態の定期更新
-            this.updateSystemState();
-        }
-        
-        // システムリソースの状態を更新
-        updateSystemState() {
-            const now = Date.now();
-            const timeDiff = (now - this.systemState.lastUpdate) / 1000;
-            
-            // CPU負荷のシミュレーション（より単純な正弦波）
-            this.systemState.cpuLoad = 0.3 + 0.2 * Math.sin(now / 5000);
-            
-            // メモリ使用率のシミュレーション（ランダムウォーク）
-            this.systemState.memoryUsage = Math.max(0, Math.min(1,
-                this.systemState.memoryUsage + (Math.random() - 0.5) * 0.05
-            ));
-            
-            // ネットワークレイテンシーのシミュレーション（スパイク発生）
-            if (Math.random() < 0.05) { // 5%の確率でスパイク
-                this.systemState.networkLatency = Math.random();
-            } else {
-                this.systemState.networkLatency *= 0.95; // 徐々に回復
-            }
-            
-            this.systemState.lastUpdate = now;
-            
-            // 環境への影響を適用
-            this.applySystemEffects();
-            
-            // 次の更新をスケジュール
-            setTimeout(() => this.updateSystemState(), 1000);
-        }
-        
-        // システム状態に基づいて環境に影響を与える
-        applySystemEffects() {
-            // CPU負荷による温度変化
-            const temperatureEffect = this.systemState.cpuLoad * this.noiseFactors.temperature;
-            
-            // メモリ使用率による環境の乱流
-            const turbulenceEffect = this.systemState.memoryUsage * this.noiseFactors.turbulence;
-            
-            // ネットワークレイテンシーによる視界への影響
-            const visibilityEffect = (1 - this.systemState.networkLatency) * this.noiseFactors.visibility;
-            
-            // グリッド全体に影響を適用（パフォーマンスのため一部のセルのみ）
-            for (let x = 0; x < width; x += 4) {
-                for (let y = 0; y < height; y += 4) {
-                    const cell = this.grid[x][y];
-                    
-                    // 温度による代謝への影響
-                    cell.forEach((amount, type) => {
-                        if (type === METABOLIC_PRODUCTS.GLUCOSE) {
-                            const newAmount = amount * (1 - temperatureEffect);
-                            cell.set(type, newAmount);
-                        }
-                    });
-                    
-                    // 乱流による資源の拡散
-                    if (turbulenceEffect > 0.5) {
-                        this.diffuseResources(x, y, turbulenceEffect);
-                    }
-                }
-            }
-        }
-        
-        // 資源の拡散をシミュレート
-        diffuseResources(x, y, intensity) {
-            const cell = this.grid[x][y];
-            const diffusionRate = 0.1 * intensity;
-            
-            cell.forEach((amount, type) => {
-                const diffusedAmount = amount * diffusionRate;
-                
-                // 隣接セルに拡散
-                for (let dx = -1; dx <= 1; dx++) {
-                    for (let dy = -1; dy <= 1; dy++) {
-                        const nx = x + dx;
-                        const ny = y + dy;
-                        if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-                            this.addResource(type, {x: nx, y: ny}, diffusedAmount / 8);
-                        }
-                    }
-                }
-                
-                // 元のセルから減少
-                cell.set(type, amount - diffusedAmount);
-            });
-        }
-
-        addResource(type, position, amount, subType = null) {
-            const x = Math.floor(position.x);
-            const y = Math.floor(position.y);
-            if (x >= 0 && x < width && y >= 0 && y < height) {
-                const cell = this.grid[x][y];
-                if (type === METABOLIC_PRODUCTS.TOXINS && subType) {
-                    // 毒素の場合は種類も保存
-                    const toxinKey = `${type}_${subType}`;
-                    cell.set(toxinKey, (cell.get(toxinKey) || 0) + amount);
-                } else {
-                    cell.set(type, (cell.get(type) || 0) + amount);
-                }
-            }
-        }
-
-        getResources(position, radius) {
-            const x = Math.floor(position.x);
-            const y = Math.floor(position.y);
-            const resources = new Map();
-            
-            for (let i = -radius; i <= radius; i++) {
-                for (let j = -radius; j <= radius; j++) {
-                    const checkX = x + i;
-                    const checkY = y + j;
-                    if (checkX >= 0 && checkX < width && checkY >= 0 && checkY < height) {
-                        const cell = this.grid[checkX][checkY];
-                        cell.forEach((amount, type) => {
-                            resources.set(type, (resources.get(type) || 0) + amount);
-                        });
-                    }
-                }
-            }
-            return resources;
-        }
-    }
-    
-    // 環境インスタンスを作成（ここで初期化）
-    environment = new Environment();
+    // ASCII文字のセット（生命体の状態を表現）
+    const asciiChars = '█▓▒░*+∙';
     
     // ライフシミュレーションのパラメータ
-    const energyDecayRate = 0.001;
-    const reproductionThreshold = 0.6;
-    const reproductionCost = 0.15;
+    const initialLifeCount = 10;  // 10から5に減少
+    const maxLifeforms = 1000;    // 1000から500に減少
+    const energyDecayRate = 0.003;  // 0.001から0.003に増加
+    const reproductionThreshold = 0.8;  // 0.6から0.8に増加
+    const reproductionCost = 0.3;   // 0.15から0.3に増加
     const mutationRate = 0.1;
     const foodGenerationRate = 0.05;  // 0.08から0.05に減少（食物生成を少し減らす、代わりに捕食が栄養源になる）
-    const maxAge = 1000;
+    const maxAge = 500;  // 1000から800に減少
+    
+    // 死骸のパラメータ
+    const initialPlantDebrisCount = Math.floor(width * height * 0.05); // 画面の5%の量の初期植物死骸
+    const initialLifeformDebrisCount = Math.floor(width * height * 0.03); // 画面の3%の量の初期生命体死骸
+    
+    // 浄化バクテリアのパラメータ
+    const initialBacteriaCount = Math.floor(width * 0.25); // 画面の25%に増加
+    const bacteriaPurificationRate = 0.01; // 毒素の浄化速度
+    const bacteriaReproductionRate = 0.005; // 繁殖率を0.003から0.005に増加
+    const bacteriaMaxCount = Math.floor(width * 0.20); // 最大数は画面の20%に増加
+    
+    // 酸素・二酸化炭素関連のパラメータ
+    const oxygenConsumptionRate = 0.005; // 変更なし
+    const oxygenProductionRate = 0.05;  // 0.008から0.05に増加
+    const oxygenDiffusionRate = 0.02;    // 変更なし
+    const maxOxygenLevel = 1.0;         
+    const co2ProductionRate = 0.005;    // 変更なし
+    const maxCO2Level = 1.0;           
+    const initialOxygenDensity = 0.2; // 初期酸素濃度
+    const initialCO2Density = 0.1;    // 初期CO2濃度
+    const gridSize = 10; // 濃度グリッドのセルサイズ
+    const gridWidth = Math.ceil(width / gridSize);
+    const gridHeight = Math.ceil(height / gridSize);
+    
+    // 濃度マップの作成
+    const oxygenMap = Array(gridWidth).fill().map(() => Array(gridHeight).fill(initialOxygenDensity));
+    const co2Map = Array(gridWidth).fill().map(() => Array(gridHeight).fill(initialCO2Density));
     
     // 捕食関連のパラメータ
-    const predationRange = 8;  // 5から8に増加（捕食可能な距離を拡大）
-    const predationEnergyGain = 0.8;  // 0.6から0.8に増加（捕食で得られるエネルギーの割合を増加）
-    const predationSuccessRate = 0.8;  // 0.7から0.8に増加（捕食の成功率を向上）
+    const predationRange = 5;  // 捕食可能な距離
+    const predationEnergyGain = 0.6;  // 捕食で得られるエネルギーの割合
+    const predationSuccessRate = 0.7;  // 捕食の成功率（捕食者のサイズと被食者のサイズの比率に影響される）
     
     // アニメーションの状態
     let time = 0;
@@ -203,24 +55,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // 生命体クラス
     class Lifeform {
         constructor(x, y, z, energy, dna = null) {
-            // 位置
+            // 位置を指定された場合のみ使用（ランダム生成を制限）
             this.position = {
-                x: x !== undefined ? x : Math.random() * width,
-                y: y !== undefined ? y : Math.random() * height,
-                z: z !== undefined ? z : Math.random() * 20 - 10
-            };
-            
-            // デジタル代謝の状態を追加
-            this.digitalMetabolism = {
-                processedData: 0,
-                cacheEfficiency: 0.8 + Math.random() * 0.2,
-                wasteAccumulation: 0
-            };
-            
-            // 情報エントロピーの状態を追加
-            this.informationState = {
-                entropy: 0.5,
-                orderLevel: 1.0
+                x: x,
+                y: y,
+                z: z || 0
             };
             
             // 速度（移動方向と速さ）
@@ -228,8 +67,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const speed = 0.1 + Math.random() * 0.3;
             this.velocity = {
                 x: Math.cos(angle) * speed,
-                y: Math.sin(angle) * speed,
-                z: (Math.random() - 0.5) * speed * 0.5
+                y: Math.sin(angle) * speed * 0.5,
+                z: 0
             };
             
             // 加速度
@@ -238,298 +77,156 @@ document.addEventListener('DOMContentLoaded', () => {
             // 生命体の特性
             this.dna = dna || {
                 // 基本的な特性
-                speed: 0.5 + Math.random() * 0.5,
-                efficiency: 0.7 + Math.random() * 0.4,
-                perception: 0.6 + Math.random() * 0.6,
-                foodAttraction: 0.8 + Math.random() * 0.8,
-                socialBehavior: Math.random() * 2 - 1,
-                reproductionRate: 0.3 + Math.random() * 0.7,
+                speed: 0.3 + Math.random() * 0.3,
+                efficiency: 0.5 + Math.random() * 0.3,
+                perception: 0.4 + Math.random() * 0.4,
+                foodAttraction: 0.5 + Math.random() * 0.5,
+                socialBehavior: Math.random() * 1.5 - 0.75,
+                reproductionRate: 0.1 + Math.random() * 0.3,
                 predatory: Math.random(),
-                size: 0.3 + Math.random() * 0.7,
+                size: 0.2 + Math.random() * 0.4,
                 
-                // メタプログラミング関連の特性を追加
-                metaprogrammingAbility: 0.2 + Math.random() * 0.6,
-                learningRate: 0.3 + Math.random() * 0.5,
-                creativity: 0.1 + Math.random() * 0.7,
-                adaptability: 0.4 + Math.random() * 0.5,
-                
-                // 光合成システム（改良）
-                photosynthesis: {
-                    efficiency: Math.random(),        // 基本効率
-                    depth: {
-                        optimal: Math.random() * 10 - 5,  // 最適深度
-                        range: 0.2 + Math.random() * 0.3  // 許容範囲
-                    },
-                    wavelengths: [
-                        // 可視光域での光合成効率
-                        { min: 400, max: 500, efficiency: Math.random() },  // 青色光
-                        { min: 500, max: 600, efficiency: Math.random() },  // 緑色光
-                        { min: 600, max: 700, efficiency: Math.random() }   // 赤色光
-                    ],
-                    adaptations: {
-                        nightMode: Math.random() * 0.3,     // 夜間の光合成効率
-                        stressResponse: Math.random() * 0.5  // ストレス下での効率
-                    }
-                },
-
-                // 毒素システム（改良）
-                toxins: {
-                    types: {
-                        neural: {          // 神経毒
-                            strength: Math.random() * 0.5,
-                            developmentCost: 0.3,
-                            effectRange: 2 + Math.random() * 3
-                        },
-                        cellular: {        // 細胞毒
-                            strength: Math.random() * 0.5,
-                            developmentCost: 0.4,
-                            effectRange: 1 + Math.random() * 2
-                        },
-                        digestive: {       // 消化器毒
-                            strength: Math.random() * 0.5,
-                            developmentCost: 0.2,
-                            effectRange: 1.5 + Math.random() * 2
-                        },
-                        genetic: {         // 遺伝子操作毒素（新規）
-                            strength: Math.random() * 0.3,
-                            developmentCost: 0.5,
-                            effectRange: 1 + Math.random() * 1.5,
-                            mutagenicPotential: Math.random() * 0.5  // 突然変異を引き起こす能力
-                        }
-                    },
-                    resistance: {
-                        neural: Math.random(),
-                        cellular: Math.random(),
-                        digestive: Math.random(),
-                        genetic: Math.random() * 0.3  // 初期値は低め（進化の余地を残す）
-                    },
-                    adaptation: {
-                        productionRate: Math.random() * 0.3,    // 毒素生成速度
-                        storageCapacity: 0.5 + Math.random(),   // 毒素貯蔵能力
-                        releaseControl: Math.random()           // 毒素放出の制御能力
-                    }
-                },
-
-                // 遺伝子ネットワーク（新規）
-                geneNetwork: {
-                    photosynthesis: {
-                        enhancedBy: ['efficiency', 'regenerationRate'],
-                        suppressedBy: ['toxins.adaptation.productionRate'],
-                        influences: ['energy', 'growth']
-                    },
-                    toxins: {
-                        enhancedBy: ['efficiency', 'size'],
-                        suppressedBy: ['photosynthesis.efficiency'],
-                        influences: ['predation', 'defense']
-                    }
-                },
-                
-                // その他の既存の特性は維持
-                mobility: Math.random(),
-                growthRate: 0.1 + Math.random() * 0.4,
-                
-                // Boidの動き
-                separationWeight: 0.3 + Math.random() * 0.2,
-                alignmentWeight: 0.2 + Math.random() * 0.2,
-                cohesionWeight: 0.2 + Math.random() * 0.2,
-                
-                // 環境適応性
-                depthPreference: (Math.random() * 10) - 5,
-                depthTolerance: 0.2 + Math.random() * 0.2,
-                
-                regenerationRate: Math.random() * 0.05,
+                // Boidの動きに関する特性
+                separationWeight: 0.7 + Math.random() * 0.3,
+                alignmentWeight: 0.2 + Math.random() * 0.3,
+                cohesionWeight: 0.1 + Math.random() * 0.2,
                 
                 // 繁殖戦略
-                offspringCount: 1,
-                parentalCare: 0.1 + Math.random() * 0.2,
+                offspringCount: 1 + Math.floor(Math.random() * 3),
+                parentalCare: Math.random(),
                 
-                // 行動パターン
-                nocturnality: 0.4 + Math.random() * 0.2,
-                territoriality: Math.random() * 0.2,
+                // 特殊能力
+                regenerationRate: Math.random() * 0.1,
+                toxicity: Math.random() * 0.5,
                 
-                // 寄生システム
-                parasitism: {
-                    capability: Math.random(),        // 寄生能力
-                    hostPreference: Math.random(),    // 好む宿主タイプ
-                    reproductiveDefect: Math.random() > 0.8,  // 80%の確率で自力繁殖不能
-                    adaptations: {
-                        hostControl: Math.random(),   // 宿主の行動を制御する能力
-                        resourceDrain: Math.random(), // 宿主からのエネルギー吸収効率
-                        hostImmuneSuppression: Math.random()  // 宿主の免疫抑制能力
-                    }
-                },
-                
-                // 寄生への耐性システム
-                parasiteResistance: {
-                    immuneStrength: Math.random(),    // 免疫力
-                    detectionAbility: Math.random(),  // 寄生者の検出能力
-                    recoveryRate: Math.random()       // 寄生からの回復率
-                },
-                
-                // DNAに以下のような特性を追加
-                resourceExchange: {
-                    giveRate: Math.random(),      // リソースを提供する傾向
-                    receiveRate: Math.random(),   // リソースを受け取る傾向
-                    exchangeRange: Math.random(), // 交換可能な範囲
-                    exchangeType: {              // 交換可能なリソースタイプ
-                        energy: Math.random(),
-                        nutrients: Math.random(),
-                        protection: Math.random()
-                    }
-                },
-                
-                metabolicPathways: {
-                    wasteProducts: [],           // 代謝産物（他の生物のリソースになりうる）
-                    requiredResources: [         // 必要な資源の初期設定
-                        METABOLIC_PRODUCTS.GLUCOSE,
-                        METABOLIC_PRODUCTS.OXYGEN
-                    ],
-                    byproducts: []              // 副産物（他の生物に有益または有害）
-                }
+                // 酸素関連の特性
+                oxygenEfficiency: 0.5 + Math.random() * 0.3, // 酸素利用効率
+                oxygenTolerance: 0.3 + Math.random() * 0.4,  // 低酸素耐性
             };
-            
-            // DNAが渡された場合でも、metabolicPathwaysが存在することを保証
-            if (!this.dna.metabolicPathways) {
-                this.dna.metabolicPathways = {
-                    wasteProducts: [],
-                    requiredResources: [
-                        METABOLIC_PRODUCTS.GLUCOSE,
-                        METABOLIC_PRODUCTS.OXYGEN
-                    ],
-                    byproducts: []
-                };
-            }
             
             // 生命体の状態
             this.energy = energy !== undefined ? energy : 0.8 + Math.random() * 0.2;
             this.age = 0;
             this.isDead = false;
-            this.deathTime = 0;        // 死亡時刻
-            this.decompositionTime = 0; // 分解までの時間
-            this.lastReproductionTime = 0;
-            this.size = Math.max(0.1, Math.min(1.0, 0.1 + Math.random() * 0.3));  // サイズを0.1-1.0に制限
-            this.maxSize = Math.max(this.size, Math.min(1.0, this.dna?.size || 0.3));  // 最大サイズも制限
+            this.lastReproductionTime = 0;  // 最後に繁殖した時間
             
             // 捕食関連の状態
-            this.lastPredationTime = 0;
-            this.lastPredationAttemptTime = 0;
-            this.isPredator = (this.dna?.predatory || 0) > 0.6 && (this.dna?.mobility || 0) > 0.4;
+            this.lastPredationTime = 0;  // 最後に捕食した時間
+            this.lastPredationAttemptTime = 0;  // 最後に捕食を試みた時間
+            this.isPredator = this.dna.predatory > 0.6;  // 捕食性向が0.6以上なら捕食者
             
-            // 捕食者の場合、移動能力を強化
-            if (this.isPredator) {
-                this.dna.mobility = Math.max(0.7, this.dna.mobility);
-                this.dna.speed = Math.max(0.8, this.dna.speed);
-                // 捕食者の初期速度を上げる
-                const predatorSpeed = 0.2 + Math.random() * 0.4;
-                this.velocity = {
-                    x: Math.cos(angle) * predatorSpeed,
-                    y: Math.sin(angle) * predatorSpeed,
-                    z: (Math.random() - 0.5) * predatorSpeed * 0.5
-                };
-            }
+            // 生命体の色（DNAに基づく）
+            // 捕食者は赤系、被食者は青系
+            this.baseHue = this.isPredator ? 
+                0 + Math.floor(this.dna.predatory * 60) :  // 赤〜黄色
+                180 + Math.floor((1 - this.dna.predatory) * 60);  // 青〜シアン
             
-            // 生命体の色
-            this.baseHue = this.calculateBaseHue();
+            // 物理特性を更新
+            this.mass = this.dna.size * 0.8 + 0.2;
+            this.buoyancy = this.dna.size * 0.9 + 0.1;
+            this.dragCoefficient = 0.1;
             
-            // 物理的な制約のためのパラメータを追加
-            this.terminalVelocity = 1.0;  // 終端速度
-            this.gravityStrength = 0.001;  // 重力の強さ
-            this.dragCoefficient = 0.01;  // 空気抵抗係数
-            this.metabolicStress = 0;     // 代謝ストレス（高速移動によるダメージ蓄積）
+            // 捕食性を連続的な特性として扱う
+            this.predatoryBehavior = this.dna.predatory; // 0-1の連続値
             
-            // 代謝関連の状態を追加
-            this.metabolicState = {
-                storedResources: new Map(),
-                lastMetabolism: 0,
-                metabolicRate: 0.12, // 0.1から0.12に増加
-                resourceEfficiency: (this.dna?.efficiency || 0.5) * 1.1, // 効率を10%向上
-                nutrientBalance: {
-                    glucose: 0.5,
-                    aminoAcids: 0.3,
-                    oxygen: 0.2
-                },
-                wasteProcessingRate: 0.08 // 廃棄物処理効率を追加
+            // 捕食能力に影響する要素を複数組み合わせる
+            this.huntingAbility = {
+                strength: this.dna.size * 0.7 + this.dna.speed * 0.3,
+                perception: this.dna.perception,
+                aggressiveness: this.dna.predatory
             };
-            
-            // 慣性関連のパラメータを追加
-            this.inertia = 0.99;  // 慣性係数（高いほど慣性が強い）
-            this.turnRate = 0.05; // 方向転換の速度（低いほど滑らか）
-            this.accelerationSmoothing = 0.99; // 加速度の平滑化係数
-            this.lastAcceleration = { x: 0, y: 0, z: 0 }; // 前回の加速度を保存
-            
-            // システムノイズへの適応状態を追加
-            this.adaptationState = {
-                temperatureTolerance: 0.5,
-                turbulenceResistance: 0.5,
-                visualAdaptation: 0.5,
-                lastAdaptation: Date.now()
-            };
-            
-            // 適応コストを追加
-            this.adaptationCosts = {
-                temperature: 0.01,    // 温度適応のエネルギーコスト
-                turbulence: 0.015,   // 乱流耐性のエネルギーコスト
-                visual: 0.008        // 視覚適応のエネルギーコスト
-            };
-            
-            // 認知階層システムを追加
-            this.cognition = new CognitiveHierarchy();
-            
-            // 認知能力に関連する DNA 特性を追加
-            this.dna.cognition = {
-                learningRate: 0.3 + Math.random() * 0.7,
-                abstractionCapacity: 0.1 + Math.random() * 0.4,
-                metacognitionAbility: 0.05 + Math.random() * 0.3,
-                patternRecognition: 0.2 + Math.random() * 0.6
-            };
-            
-            // DNA修復システムを追加
-            this.dnaRepairSystem = new DNARepairSystem(this);
-            
-            // DNA修復能力に関連する特性を追加
-            if (!this.dna.errorDetection) this.dna.errorDetection = 0.4 + Math.random() * 0.5;
-            if (!this.dna.repairEfficiency) this.dna.repairEfficiency = 0.3 + Math.random() * 0.6;
-            
-            // 通信能力に関連する DNA 特性を追加
-            if (!this.dna.communicationBandwidth) this.dna.communicationBandwidth = 0.3 + Math.random() * 0.5;
-            if (!this.dna.communicationReliability) this.dna.communicationReliability = 0.4 + Math.random() * 0.5;
-            
-            // 通信システムを初期化
-            this.communicationSystem = new CommunicationSystem(this);
-            
-            // 一意のID
-            this.id = Math.random().toString(36).substr(2, 9);
-            
-            // メモリシステム
-            this.memory = {
-                resourceLocations: [],
-                threats: [],
-                allies: [],
-                environmentalKnowledge: {}
-            };
-            
-            // 最後に発見したリソース
-            this.lastFoundResource = null;
-            
-            // メタプログラミングシステムを初期化
-            this.metaprogrammingSystem = new MetaprogrammingSystem(this);
+
+            this.toxicDamageResistance = 0.8; // 毒素へのダメージ耐性（0-1）
         }
         
-        calculateBaseHue() {
-            if (this.dna?.photosynthesis?.efficiency > 0.6) {
-                // 光合成能力が高い生命体は緑系
-                return 90 + Math.floor((this.dna?.photosynthesis?.efficiency || 0.5) * 30);
-            } else if (this.isPredator) {
-                // 捕食者は赤系
-                return 0 + Math.floor((this.dna?.predatory || 0.5) * 60);
-            } else {
-                // その他は青系
-                return 180 + Math.floor((1 - (this.dna?.predatory || 0.5)) * 60);
+        // 捕食の判定をより自然な形に
+        canPredate(target) {
+            const sizeDifference = this.dna.size / target.dna.size;
+            const energyAdvantage = this.energy / target.energy;
+            const predatoryDrive = this.predatoryBehavior;
+            
+            // 毒性による防御効果を追加
+            const toxicityDefense = target.dna.toxicity * 0.8;
+            
+            // 複数の要因を組み合わせて捕食可能性を判定（毒性による防御を考慮）
+            return (sizeDifference * energyAdvantage * predatoryDrive) > (0.5 + toxicityDefense);
+        }
+        
+        // 色の計算も連続的に
+        getDisplayColor() {
+            // 捕食性の度合いに応じて連続的に色が変化
+            const hue = 180 + this.predatoryBehavior * 180; // 0=青、1=赤の連続的な変化
+            const saturation = 50 + this.energy * 50;
+            const lightness = 70 - (this.age / this.maxAge) * 40;
+            
+            return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+        }
+        
+        // 食物を探す
+        seekFood(foods, bacteria) {  // bacteriaパラメータを追加
+            let steering = { x: 0, y: 0, z: 0 };
+            let closestDist = Infinity;
+            let closestFood = null;
+            
+            // 知覚範囲を計算
+            const perceptionRadius = 20 * this.dna.perception;
+            
+            // 植物を探す
+            for (const food of foods) {
+                const dx = food.position.x - this.position.x;
+                const dy = food.position.y - this.position.y;
+                const dz = food.position.z - this.position.z;
+                const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                
+                if (distance < perceptionRadius && distance < closestDist) {
+                    closestDist = distance;
+                    closestFood = food;
+                }
             }
+
+            // バクテリアも食物として探す
+            for (const bacterium of bacteria) {
+                const dx = bacterium.position.x - this.position.x;
+                const dy = bacterium.position.y - this.position.y;
+                const dz = bacterium.position.z - this.position.z;
+                const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                
+                if (distance < perceptionRadius && distance < closestDist) {
+                    closestDist = distance;
+                    closestFood = bacterium;
+                }
+            }
+            
+            if (closestFood) {
+                // 最も近い食物に向かうベクトル
+                steering.x = closestFood.position.x - this.position.x;
+                steering.y = closestFood.position.y - this.position.y;
+                steering.z = closestFood.position.z - this.position.z;
+                
+                // ベクトルの正規化
+                const magnitude = Math.sqrt(
+                    steering.x * steering.x + 
+                    steering.y * steering.y + 
+                    steering.z * steering.z
+                );
+                
+                if (magnitude > 0) {
+                    steering.x = (steering.x / magnitude) * this.dna.speed;
+                    steering.y = (steering.y / magnitude) * this.dna.speed;
+                    steering.z = (steering.z / magnitude) * this.dna.speed;
+                }
+                
+                // 食物への引力を適用
+                steering.x *= this.dna.foodAttraction;
+                steering.y *= this.dna.foodAttraction;
+                steering.z *= this.dna.foodAttraction;
+            }
+            
+            return steering;
         }
         
         // 他の生命体との相互作用（捕食を含む）
-        interact(lifeforms, environment) {
+        interact(lifeforms, toxicMatters) {
             let steering = { x: 0, y: 0, z: 0 };
             let count = 0;
             
@@ -541,32 +238,16 @@ document.addEventListener('DOMContentLoaded', () => {
             let avgPosition = { x: 0, y: 0, z: 0 };
             let avgVelocity = { x: 0, y: 0, z: 0 };
             
-            // 毒素忌避のための変数を追加
-            let toxinAvoidance = { x: 0, y: 0, z: 0 };
-            let toxinCount = 0;
-            
             // 捕食対象または仲間を探す
             let preyFound = false;
             let closestPreyDist = Infinity;
             let closestPrey = null;
             
-            // 死体との相互作用のための変数
-            let closestCorpseDist = Infinity;
-            let closestCorpse = null;
-            
             // 知覚範囲を計算
             const perceptionRadius = 15 * this.dna.perception;
             
-            // 捕食者の場合、捕食範囲を拡大（捕食傾向が強いほど広範囲）
-            const predationRange = this.isPredator ? 5 * (1 + this.dna.predatory * 0.5) : 0;
-            const predationSuccessRate = 0.9 * this.dna.predatory; // 0.7から0.9に増加（捕食成功率を向上）
-            const predationEnergyGain = 0.5 + (this.dna.predatory * 0.3); // 0.3から0.5に基本値を増加、係数も0.2から0.3に増加
-            
-            // 現在の時間を取得
-            const time = performance.now();
-            
             for (const other of lifeforms) {
-                if (other === this) continue;
+                if (other === this || other.isDead) continue;
                 
                 const dx = other.position.x - this.position.x;
                 const dy = other.position.y - this.position.y;
@@ -574,55 +255,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
                 
                 if (distance < perceptionRadius) {
-                    if (other.isDead) {
-                        // 死体の毒素を避ける行動を毒性タイプに基づいて計算
-                        const mainToxinResistance = this.dna?.toxins?.resistance?.neural || 0.1;
-                        const secondaryToxinResistance = this.dna?.toxins?.resistance?.cellular || 0.1;
-                        const avgResistance = (mainToxinResistance + secondaryToxinResistance) / 2;
-                        
-                        if (avgResistance < 0.5) {
-                            const mainToxinForce = this.dna?.toxins?.types?.neural?.strength || 0.1;
-                            const secondaryToxinForce = (this.dna?.toxins?.types?.cellular?.strength || 0.1) * 0.5;
-                            const totalToxinForce = (mainToxinForce + secondaryToxinForce) * (1 - avgResistance);
-                            const avoidanceStrength = totalToxinForce * (1 - distance / perceptionRadius);
-                            
-                            toxinAvoidance.x -= dx * avoidanceStrength;
-                            toxinAvoidance.y -= dy * avoidanceStrength;
-                            toxinAvoidance.z -= dz * avoidanceStrength;
-                            toxinCount++;
-                        }
-                        
-                        // 毒素耐性が高い場合のみ死体に接近
-                        if (avgResistance > 0.5 && distance < closestCorpseDist) {
-                            closestCorpseDist = distance;
-                            closestCorpse = other;
-                        }
-                        continue;
-                    }
-                    
-                    // 生存中の生命体との毒素関連の相互作用も更新
-                    const otherMainToxinResistance = this.dna?.toxins?.resistance?.neural || 0.1;
-                    const otherSecondaryToxinResistance = this.dna?.toxins?.resistance?.cellular || 0.1;
-                    const avgOtherResistance = (otherMainToxinResistance + otherSecondaryToxinResistance) / 2;
-                    
-                    if (avgOtherResistance < 0.5 && ((this.dna?.toxins?.types?.neural?.strength || 0) > 0.3 || 
-                        (this.dna?.toxins?.types?.cellular?.strength || 0) > 0.3)) {
-                        const mainToxinForce = this.dna?.toxins?.types?.neural?.strength || 0.1;
-                        const secondaryToxinForce = (this.dna?.toxins?.types?.cellular?.strength || 0.1) * 0.5;
-                        const totalToxinForce = (mainToxinForce + secondaryToxinForce) * (1 - avgOtherResistance);
-                        const avoidanceStrength = totalToxinForce * (1 - distance / perceptionRadius);
-                        
-                        toxinAvoidance.x -= dx * avoidanceStrength;
-                        toxinAvoidance.y -= dy * avoidanceStrength;
-                        toxinAvoidance.z -= dz * avoidanceStrength;
-                        toxinCount++;
-                    }
-                    
                     // 捕食者の場合、被食者を探す
                     if (this.isPredator && !other.isPredator && distance < closestPreyDist) {
-                        // 捕食傾向が強いほど、サイズの大きな生命体も捕食対象にする
-                        const sizeThreshold = 0.8 - (this.dna.predatory * 0.3);
-                        if (this.dna.size > other.dna.size * sizeThreshold) {
+                        if (this.dna.size > other.dna.size * 0.8) {
                             closestPreyDist = distance;
                             closestPrey = other;
                             preyFound = true;
@@ -652,11 +287,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     // 捕食者と被食者の関係に基づく追加の力
                     if (this.isPredator && !other.isPredator) {
-                        // 捕食傾向が強いほど、被食者に強く引き寄せられる
-                        const predatoryFactor = 0.5 + (this.dna.predatory * 0.5);
-                        steering.x += dx * predatoryFactor;
-                        steering.y += dy * predatoryFactor;
-                        steering.z += dz * predatoryFactor;
+                        // 捕食者は被食者に引き寄せられる
+                        steering.x += dx * 0.5;
+                        steering.y += dy * 0.5;
+                        steering.z += dz * 0.5;
                     } else if (!this.isPredator && other.isPredator) {
                         // 被食者は捕食者から逃げる
                         steering.x -= dx;
@@ -665,33 +299,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     
                     count++;
-                }
-            }
-            
-            // 死体への接近と毒素吸収
-            if (closestCorpse && closestCorpseDist < 5) {
-                // 毒素耐性と吸収能力に基づいてエネルギーを得る
-                const absorbedEnergy = closestCorpse.energy * 
-                    (this.dna.toxins?.adaptation?.storageCapacity || 0.5) * 
-                    Math.min(1, (this.dna.toxins?.resistance?.neural || 0.1) / 
-                    (closestCorpse.dna.toxins?.types?.neural?.strength || 0.1)) * 0.1;
-                
-                if (absorbedEnergy > 0) {
-                    this.energy = Math.min(1.0, this.energy + absorbedEnergy);
-                    closestCorpse.energy *= 0.9; // 吸収された分のエネルギーを減少
-                }
-                
-                // 死体に向かう力を生成
-                const magnitude = Math.sqrt(
-                    steering.x * steering.x + 
-                    steering.y * steering.y + 
-                    steering.z * steering.z
-                );
-                
-                if (magnitude > 0) {
-                    steering.x = (steering.x / magnitude) * this.dna.speed;
-                    steering.y = (steering.y / magnitude) * this.dna.speed;
-                    steering.z = (steering.z / magnitude) * this.dna.speed;
                 }
             }
             
@@ -704,28 +311,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     separation.z * separation.z
                 );
                 if (sepMag > 0) {
-                    // flockingBehaviorのプロパティがあれば使用、なければDNAの直接の値を使用
-                    const sepWeight = this.dna.flockingBehavior?.separation || this.dna.separationWeight;
-                    separation.x = (separation.x / sepMag) * sepWeight;
-                    separation.y = (separation.y / sepMag) * sepWeight;
-                    separation.z = (separation.z / sepMag) * sepWeight;
+                    separation.x = (separation.x / sepMag) * this.dna.separationWeight;
+                    separation.y = (separation.y / sepMag) * this.dna.separationWeight;
+                    separation.z = (separation.z / sepMag) * this.dna.separationWeight;
                 }
                 
                 // 整列の正規化と重み付け
-                const alignWeight = this.dna.flockingBehavior?.alignment || this.dna.alignmentWeight;
-                alignment.x = (alignment.x / flockCount) * alignWeight;
-                alignment.y = (alignment.y / flockCount) * alignWeight;
-                alignment.z = (alignment.z / flockCount) * alignWeight;
+                alignment.x = (alignment.x / flockCount) * this.dna.alignmentWeight;
+                alignment.y = (alignment.y / flockCount) * this.dna.alignmentWeight;
+                alignment.z = (alignment.z / flockCount) * this.dna.alignmentWeight;
                 
                 // 結合の計算と重み付け
                 avgPosition.x = avgPosition.x / flockCount;
                 avgPosition.y = avgPosition.y / flockCount;
                 avgPosition.z = avgPosition.z / flockCount;
                 
-                const cohWeight = this.dna.flockingBehavior?.cohesion || this.dna.cohesionWeight;
-                cohesion.x = (avgPosition.x - this.position.x) * cohWeight;
-                cohesion.y = (avgPosition.y - this.position.y) * cohWeight;
-                cohesion.z = (avgPosition.z - this.position.z) * cohWeight;
+                cohesion.x = (avgPosition.x - this.position.x) * this.dna.cohesionWeight;
+                cohesion.y = (avgPosition.y - this.position.y) * this.dna.cohesionWeight;
+                cohesion.z = (avgPosition.z - this.position.z) * this.dna.cohesionWeight;
                 
                 // すべての力を合成
                 steering.x += separation.x + alignment.x + cohesion.x;
@@ -735,14 +338,13 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // 捕食行動
             if (preyFound && closestPrey && closestPreyDist < predationRange) {
-                // 捕食傾向が強いほどクールダウン時間が短い
-                const cooldownTime = Math.max(5, 15 - (this.dna.predatory * 10));
-                if (time - this.lastPredationAttemptTime > cooldownTime) {
+                // 前回の捕食試行から一定時間経過している場合のみ捕食を試みる
+                if (time - this.lastPredationAttemptTime > 20) {
                     this.lastPredationAttemptTime = time;
                     
-                    // サイズ差と捕食傾向による成功率の計算
-                    const sizeDifference = Math.pow(this.dna.size / closestPrey.dna.size, 0.7); // 0.8から0.7に変更（サイズ差の影響を軽減）
-                    const successChance = predationSuccessRate * sizeDifference * this.dna.predatory;
+                    // 捕食の成功率はサイズの差と基本成功率に依存
+                    const sizeDifference = this.dna.size / closestPrey.dna.size;
+                    const successChance = predationSuccessRate * sizeDifference;
                     
                     if (Math.random() < successChance) {
                         // 捕食成功
@@ -751,37 +353,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         // 獲物からエネルギーを得る
                         const gainedEnergy = closestPrey.energy * predationEnergyGain;
                         this.energy += gainedEnergy;
-                        
-                        // 捕食成功時に少量の回復効果を追加
-                        if (this.dna.regenerationRate > 0) {
-                            this.energy += 0.05 * this.dna.regenerationRate;
-                        }
-                        
-                        this.energy = Math.min(1.0, this.energy);  // エネルギー上限
+                        this.energy = Math.min(this.energy, 1.0);  // エネルギー上限
                         
                         // 獲物を死亡させる
                         closestPrey.isDead = true;
                     }
-                }
-            }
-            
-            // 毒素忌避の力を追加
-            if (toxinCount > 0) {
-                const toxinMagnitude = Math.sqrt(
-                    toxinAvoidance.x * toxinAvoidance.x +
-                    toxinAvoidance.y * toxinAvoidance.y +
-                    toxinAvoidance.z * toxinAvoidance.z
-                );
-                
-                if (toxinMagnitude > 0) {
-                    const toxinWeight = 1.5; // 毒素忌避の重み（他の力より優先）
-                    toxinAvoidance.x = (toxinAvoidance.x / toxinMagnitude) * toxinWeight;
-                    toxinAvoidance.y = (toxinAvoidance.y / toxinMagnitude) * toxinWeight;
-                    toxinAvoidance.z = (toxinAvoidance.z / toxinMagnitude) * toxinWeight;
-                    
-                    steering.x += toxinAvoidance.x;
-                    steering.y += toxinAvoidance.y;
-                    steering.z += toxinAvoidance.z;
                 }
             }
             
@@ -804,212 +380,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             
-            // 代謝産物による相互作用を追加
-            for (const other of lifeforms) {
-                if (other === this || other.isDead) continue;
-                
-                const distance = this.getDistanceTo(other);
-                // resourceExchangeの存在チェックを追加
-                if (this.dna?.resourceExchange?.exchangeRange && 
-                    distance < this.dna.resourceExchange.exchangeRange * 5) {
-                    // 代謝産物の交換
-                    const exchangeEfficiency = Math.max(0, 1 - distance / (this.dna.resourceExchange.exchangeRange * 5));
+            // 毒素からの逃避行動
+            const { nearestToxic, nearestDistance } = this.checkToxicInteraction(toxicMatters);
+            if (nearestToxic) {
+                const toxicPerceptionRadius = 20; // 毒素の知覚範囲
+                if (nearestDistance < toxicPerceptionRadius) {
+                    const dx = nearestToxic.position.x - this.position.x;
+                    const dy = nearestToxic.position.y - this.position.y;
+                    const dz = nearestToxic.position.z - this.position.z;
                     
-                    // giveRateの存在チェックも追加
-                    if (this.dna.resourceExchange.giveRate > 0.5) {
-                        const resources = environment.getResources(this.position, 1);
-                        resources.forEach((amount, type) => {
-                            if (other.needsResource(type)) {
-                                const given = amount * exchangeEfficiency * this.dna.resourceExchange.giveRate;
-                                environment.addResource(type, other.position, given);
-                                environment.addResource(type, this.position, -given);
-                                
-                                // 協力関係の強化
-                                this.strengthenBond(other);
-                            }
-                        });
-                    }
-                }
-                
-                // 遺伝子操作毒素の効果
-                if (this.dna?.toxins?.types?.genetic?.strength > 0.2 && 
-                    distance < this.dna.toxins.types.genetic.effectRange * 2) {
-                    
-                    // 遺伝子操作毒素の放出
-                    const toxinStrength = this.dna.toxins.types.genetic.strength;
-                    const resistanceLevel = other.dna?.toxins?.resistance?.genetic || 0;
-                    const effectiveStrength = Math.max(0, toxinStrength - resistanceLevel);
-                    
-                    if (effectiveStrength > 0.1 && Math.random() < effectiveStrength * 0.5) {
-                        // エピジェネティック状態の初期化
-                        if (!other.epigeneticState) other.epigeneticState = new EpigeneticState();
-                        
-                        // ランダムな遺伝子を選択して発現を変化させる
-                        const targetGenes = ['speed', 'perception', 'efficiency', 'photosynthesis.efficiency'];
-                        const targetGene = targetGenes[Math.floor(Math.random() * targetGenes.length)];
-                        
-                        // 遺伝子発現の変化を記録
-                        other.epigeneticState.updateMethylation(targetGene, effectiveStrength);
-                        
-                        // 遺伝子発現の変化を適用
-                        if (!other._geneExpressionModifiers) other._geneExpressionModifiers = {};
-                        other._geneExpressionModifiers[targetGene] = {
-                            factor: 1 - effectiveStrength,
-                            duration: 50 + Math.floor(effectiveStrength * 150)  // 効果の持続時間
-                        };
-                        
-                        // 毒素放出のエネルギーコスト
-                        this.energy -= this.dna.toxins.types.genetic.developmentCost * 0.1;
-                        
-                        // 毒素の影響下にある生命体は遺伝子伝達の受容体が活性化
-                        other._receptiveToTransfer = true;
-                        
-                        // 突然変異の可能性
-                        if (Math.random() < this.dna.toxins.types.genetic.mutagenicPotential * 0.3) {
-                            // 遺伝子の水平伝達
-                            this.transferGene(other);
-                        }
-                        
-                        // 交配の可能性を高める
-                        if (this.dna._geneticHackingPotential && Math.random() < this.dna._geneticHackingPotential * 0.2) {
-                            // 自身も受容体を活性化
-                            this._receptiveToTransfer = true;
-                            
-                            // 交配を試みる
-                            if (Math.random() < 0.2) {
-                                this.attemptMating(other);
-                            }
-                        }
-                    }
-                }
-                
-                // 水平遺伝子伝達（低確率で自然発生）
-                if (distance < 2 && Math.random() < 0.005) {
-                    this.transferGene(other);
+                    // 距離に応じた逃避力を計算（近いほど強い）
+                    const avoidanceForce = (toxicPerceptionRadius - nearestDistance) / toxicPerceptionRadius * 2;
+                    steering.x -= dx * avoidanceForce;
+                    steering.y -= dy * avoidanceForce;
+                    steering.z -= dz * avoidanceForce;
                 }
             }
             
             return steering;
-        }
-        
-        // 遺伝子の水平伝達
-        transferGene(other) {
-            // 受容体が活性化されているか、低確率で発生
-            if (other._receptiveToTransfer || Math.random() < 0.1) {
-                // 転移可能な遺伝子を選択
-                const transferableGenes = Object.keys(this.dna).filter(key => 
-                    typeof this.dna[key] === 'number' && key !== '_requires_host'
-                );
-                
-                if (transferableGenes.length > 0) {
-                    const geneToTransfer = transferableGenes[Math.floor(Math.random() * transferableGenes.length)];
-                    
-                    // 遺伝子の転移（混合）
-                    other.dna[geneToTransfer] = (other.dna[geneToTransfer] || 0) * 0.7 + this.dna[geneToTransfer] * 0.3;
-                    
-                    // 遺伝子転移のエネルギーコスト
-                    this.energy -= 0.05;
-                    
-                    // 遺伝子獲得のマーカー
-                    other._acquiredGenes = other._acquiredGenes || [];
-                    other._acquiredGenes.push({
-                        gene: geneToTransfer,
-                        source: this,
-                        time: time
-                    });
-                    
-                    // 免疫応答の可能性
-                    if (other.dna?.toxins?.resistance?.genetic > 0.6 && Math.random() < other.dna.toxins.resistance.genetic * 0.5) {
-                        // 免疫応答が成功した場合、転移した遺伝子を拒絶
-                        delete other.dna[geneToTransfer];
-                        other._immune_response = true;
-                    }
-                    
-                    // 交配の可能性を追加
-                    if (this._acquiredGenes && other._acquiredGenes && 
-                        this._receptiveToTransfer && other._receptiveToTransfer &&
-                        Math.random() < 0.3) { // 30%の確率で交配が発生
-                        this.attemptMating(other);
-                    }
-                }
-            }
-        }
-        
-        // 交配を試みるメソッド
-        attemptMating(partner) {
-            // 両者のエネルギーが十分かチェック
-            if (this.energy < 0.4 || partner.energy < 0.4) return;
-            
-            // 交配のエネルギーコスト
-            const matingCost = 0.2;
-            this.energy -= matingCost;
-            partner.energy -= matingCost;
-            
-            // 遺伝子組み換えによる子孫のDNA生成
-            const childDna = this.crossover(partner);
-            
-            // 遺伝子ハッキングの影響を子孫に反映
-            if (this._acquiredGenes || partner._acquiredGenes) {
-                // 毒素システムの強化
-                childDna.toxins = childDna.toxins || {};
-                childDna.toxins.types = childDna.toxins.types || {};
-                childDna.toxins.types.genetic = childDna.toxins.types.genetic || {
-                    strength: 0.3,
-                    developmentCost: 0.4,
-                    effectRange: 2.0,
-                    mutagenicPotential: 0.4
-                };
-                
-                // 遺伝子ハッキングによる特殊能力
-                childDna._geneticHackingPotential = 0.5 + Math.random() * 0.5;
-                
-                // 交配による特殊フラグ
-                childDna._matingOffspring = true;
-            }
-            
-            // 子孫の位置を両親の中間に設定
-            const childX = (this.position.x + partner.position.x) / 2 + (Math.random() - 0.5) * 2;
-            const childY = (this.position.y + partner.position.y) / 2 + (Math.random() - 0.5) * 2;
-            const childZ = (this.position.z + partner.position.z) / 2 + (Math.random() - 0.5) * 2;
-            
-            // 子孫を生成
-            const child = new Lifeform(
-                childX,
-                childY,
-                childZ,
-                0.5, // 初期エネルギー
-                childDna
-            );
-            
-            // 子孫を環境に追加
-            lifeforms.push(child);
-            
-            // 交配記録
-            this._lastMatingTime = time;
-            partner._lastMatingTime = time;
-            this._matingPartner = partner;
-            partner._matingPartner = this;
-            
-            // 結合を強化
-            this.strengthenBond(partner);
-            partner.strengthenBond(this);
-        }
-        
-        strengthenBond(other) {
-            if (!this.bonds) this.bonds = new Map();
-            const currentBond = this.bonds.get(other) || 0;
-            this.bonds.set(other, Math.min(1.0, currentBond + 0.01));
-            
-            // 群れ行動の重みを調整
-            if (this.bonds.get(other) > 0.5) {
-                this.dna.cohesionWeight *= 1.01;
-                this.dna.alignmentWeight *= 1.01;
-            }
-        }
-        
-        needsResource(type) {
-            // 必要な資源かどうかを判定（安全なプロパティアクセス）
-            return this.dna?.metabolicPathways?.requiredResources?.includes(type) || false;
         }
         
         // 境界を超えないようにする力
@@ -1018,1039 +406,323 @@ document.addEventListener('DOMContentLoaded', () => {
             let force = { x: 0, y: 0, z: 0 };
             const boundaryForce = 0.05;
             
+            // 水平方向の境界
             if (this.position.x < margin) {
                 force.x = boundaryForce;
             } else if (this.position.x > width - margin) {
                 force.x = -boundaryForce;
             }
             
-            if (this.position.y < margin) {
-                force.y = boundaryForce;
-            } else if (this.position.y > height - margin) {
-                force.y = -boundaryForce;
-            }
+            // 垂直方向の境界（水面と底面で異なる挙動）
+            const surfaceMargin = 3;
+            const bottomMargin = 4;
             
-            if (this.position.z < -10) {
-                force.z = boundaryForce;
-            } else if (this.position.z > 10) {
-                force.z = -boundaryForce;
+            if (this.position.y < surfaceMargin) {
+                // 水面付近での挙動
+                const depthFactor = this.position.y / surfaceMargin;
+                force.y = boundaryForce * (1 - depthFactor) * 0.8;
+                
+                // 酸素レベルが高い場合、より強く押し下げる
+                const surfaceOxygen = getOxygenAt(this.position.x, 0);
+                if (surfaceOxygen > 0.5) {
+                    force.y += boundaryForce * 0.4;
+                }
+            } else if (this.position.y > height - bottomMargin) {
+                // 底面付近での挙動
+                const heightFactor = (height - this.position.y) / bottomMargin;
+                force.y = -boundaryForce * (1 - heightFactor);
+                
+                // 毒性物質が多い場合、より強く押し上げる
+                const toxicCount = this.countNearbyToxic();
+                if (toxicCount > 2) {
+                    force.y -= boundaryForce * 0.3;
+                }
             }
             
             return force;
         }
         
-        // 生命体の更新
-        update(lifeforms, environment) {
-            // 遺伝子発現の変化を適用
-            if (this._geneExpressionModifiers) {
-                for (const [gene, modifier] of Object.entries(this._geneExpressionModifiers)) {
-                    // 遺伝子パスを解析
-                    const genePath = gene.split('.');
-                    let target = this.dna;
-                    for (let i = 0; i < genePath.length - 1; i++) {
-                        if (target[genePath[i]]) {
-                            target = target[genePath[i]];
-                        } else {
-                            target = null;
-                            break;
-                        }
-                    }
-                    
-                    const finalGene = genePath[genePath.length - 1];
-                    if (target && target[finalGene] !== undefined) {
-                        // 元の値を保存
-                        if (!target._originalValues) target._originalValues = {};
-                        if (target._originalValues[finalGene] === undefined) {
-                            target._originalValues[finalGene] = target[finalGene];
-                        }
-                        
-                        // 修飾を適用
-                        target[finalGene] = target._originalValues[finalGene] * modifier.factor;
-                        
-                        // 持続時間を減少
-                        modifier.duration--;
-                        
-                        // 持続時間が終了したら効果を解除
-                        if (modifier.duration <= 0) {
-                            target[finalGene] = target._originalValues[finalGene];
-                            delete this._geneExpressionModifiers[gene];
-                            
-                            // 突然変異の可能性
-                            if (Math.random() < 0.1) {
-                                // 永続的な変異
-                                target[finalGene] *= 1 + (Math.random() * 0.4 - 0.2); // -20%〜+20%の変化
-                                target._originalValues[finalGene] = target[finalGene]; // 新しい基準値を設定
-                            }
-                        }
-                    }
-                }
-            }
+        // 近くの毒性物質をカウント
+        countNearbyToxic() {
+            if (!this.toxicMatters) return 0;
             
-            // 遺伝子ハッキングへの免疫応答
-            if (this._immune_response) {
-                // 免疫応答のエネルギーコスト
-                this.energy -= 0.02;
-                
-                // 免疫応答の持続時間
-                if (!this._immune_response_duration) {
-                    this._immune_response_duration = 50;
-                } else {
-                    this._immune_response_duration--;
-                    if (this._immune_response_duration <= 0) {
-                        this._immune_response = false;
-                        delete this._immune_response_duration;
-                    }
-                }
-                
-                // 免疫応答中は遺伝子伝達の受容体が不活性化
-                this._receptiveToTransfer = false;
-            }
-            
-            // 受容体の状態を時間経過で減衰
-            if (this._receptiveToTransfer && Math.random() < 0.05) {
-                this._receptiveToTransfer = false;
-            }
-            
-            // 宿主依存の処理を追加
-            if (this.dna._requires_host) {
-                if (!this._attached_host) {
-                    // 宿主を探す
-                    const potentialHosts = lifeforms.filter(host => {
-                        if (host === this || host.isDead || host.dna._requires_host) return false;
-                        if (host._parasites && host._parasites.length >= 3) return false;
-                        return host.dna.photosynthesis?.efficiency > 0.5;
-                    });
-
-                    if (potentialHosts.length > 0) {
-                        const host = potentialHosts[Math.floor(Math.random() * potentialHosts.length)];
-                        if (!host._parasites) host._parasites = [];
-                        host._parasites.push(this);
-                        this._attached_host = host;
-                        this.position = { ...host.position };
-                    } else {
-                        // 宿主が見つからない場合、エネルギーを急速に失う
-                        this.energy *= 0.95;
-                    }
-                } else {
-                    // 宿主からエネルギーを得る（依存度に応じて）
-                    const energyDrain = this._attached_host.energy * 0.01 * (this.dna._host_dependency || 0.5);
-                    this._attached_host.energy -= energyDrain;
-                    this.energy += energyDrain * 0.8; // 80%の効率でエネルギー転換
-                    
-                    // 宿主の位置に追従
-                    this.position = { ...this._attached_host.position };
-                    
-                    // 宿主が死亡した場合、関係を解除
-                    if (this._attached_host.isDead) {
-                        this._attached_host = null;
-                    }
-                }
-            }
-            
-            // 死体の分解処理
-            if (this.isDead) {
-                if (this.deathTime === 0) {
-                    this.deathTime = time;
-                    // 毒性が高いほど分解に時間がかかる
-                    const baseToxinStrength = this.dna?.toxins?.types?.neural?.strength || 0.1;
-                    this.decompositionTime = 200 + Math.floor(baseToxinStrength * 300); // 分解時間を延長
-                    
-                    // 死後の初期状態を設定
-                    this.decompositionStage = 0;
-                    this.postMortemToxins = {
-                        neural: baseToxinStrength,
-                        cellular: this.dna?.toxins?.types?.cellular?.strength || 0.1,
-                        digestive: this.dna?.toxins?.types?.digestive?.strength || 0.1
-                    };
-                }
-                
-                // 分解の進行度を計算
-                const decompositionProgress = (time - this.deathTime) / this.decompositionTime;
-                
-                // 分解段階の更新（4段階）
-                const newStage = Math.floor(decompositionProgress * 4);
-                if (newStage > this.decompositionStage) {
-                    this.decompositionStage = newStage;
-                    
-                    // 各段階での毒素変化
-                    switch(this.decompositionStage) {
-                        case 1: // 初期分解
-                            // 細胞の崩壊により一時的に毒素が増加
-                            Object.keys(this.postMortemToxins).forEach(type => {
-                                this.postMortemToxins[type] *= 1.2;
-                            });
-                            break;
-                        case 2: // 中期分解
-                            // 毒素が徐々に環境に放出され始める
-                            Object.keys(this.postMortemToxins).forEach(type => {
-                                this.postMortemToxins[type] *= 0.8;
-                            });
-                            break;
-                        case 3: // 後期分解
-                            // 毒素が急速に減少
-                            Object.keys(this.postMortemToxins).forEach(type => {
-                                this.postMortemToxins[type] *= 0.5;
-                            });
-                            break;
-                    }
-                }
-                
-                // サイズの変化をより自然に
-                const sizeReduction = Math.pow(1 - decompositionProgress, 2);
-                this.size = Math.max(0.1, this.maxSize * sizeReduction);
-                
-                // 環境への毒素放出
-                if (environment && this.decompositionStage > 0) {
-                    // 主要な毒素タイプを判定
-                    let dominantToxin = 'neural';
-                    let maxStrength = this.postMortemToxins?.neural || 0;
-                    
-                    if (this.postMortemToxins?.cellular > maxStrength) {
-                        dominantToxin = 'cellular';
-                        maxStrength = this.postMortemToxins.cellular;
-                    }
-                    if (this.postMortemToxins?.digestive > maxStrength) {
-                        dominantToxin = 'digestive';
-                        maxStrength = this.postMortemToxins.digestive;
-                    }
-                    
-                    const toxinRelease = Object.values(this.postMortemToxins).reduce((sum, val) => sum + val, 0) / 
-                        (this.decompositionStage * 10);
-                    environment.addResource(METABOLIC_PRODUCTS.TOXINS, this.position, toxinRelease, dominantToxin);
-                }
-                
-                // 完全に分解されたら true を返す
-                return time - this.deathTime > this.decompositionTime;
-            }
-            
-            // 寄生の影響を処理
-            if (this.parasites && this.parasites.length > 0) {
-                // 各寄生者からエネルギーを奪われる
-                this.parasites.forEach(parasite => {
-                    const drainAmount = this.energy * parasite.dna.parasitism.adaptations.resourceDrain * 0.1;
-                    this.energy -= drainAmount;
-                    parasite.energy += drainAmount * 0.8;  // 80%の効率でエネルギー転換
-                });
-                
-                // 免疫応答による寄生者の排除を試みる
-                if (Math.random() < (this.dna?.parasiteResistance?.recoveryRate || 0)) {
-                    this.parasites = this.parasites.filter(parasite => 
-                        Math.random() > (this.dna?.parasiteResistance?.immuneStrength || 0));
-                }
-            }
-            
-            // 生存中の処理
-            if (!this.isDead) {
-                // エネルギー減少（捕食者はエネルギー消費が少ない）
-                const energyDecayMultiplier = this.isPredator ? 0.7 : 1.0; // 捕食者のエネルギー消費を30%削減
-                this.energy -= energyDecayRate * energyDecayMultiplier;
-                
-                // 年齢を増加
-                this.age++;
-                
-                // 時間による影響（昼夜サイクル）
-                const dayPhase = (time % 240) / 240;
-                const isNight = dayPhase > 0.5;
-                const activityMultiplier = isNight ?
-                    (this.dna.nocturnality) :
-                    (1 - this.dna.nocturnality);
-                
-                // 深さに基づくストレス計算
-                const depthStress = Math.abs(this.position.z - this.dna.depthPreference) / 
-                    (10 * this.dna.depthTolerance);
-                
-                // 光合成によるエネルギー生成（捕食者は光合成効率が低い）
-                if (this.dna.photosynthesis.efficiency > 0.2) {
-                    // 深度に基づく効率計算
-                    const depthDiff = Math.abs(this.position.z - this.dna.photosynthesis.depth.optimal);
-                    const depthEfficiency = Math.max(0, 1 - (depthDiff / this.dna.photosynthesis.depth.range));
-                    
-                    // 時間帯による効率計算
-                    const timeEfficiency = isNight ? 
-                        this.dna.photosynthesis.adaptations.nightMode : 
-                        1.0;
-                    
-                    // ストレス応答による効率計算
-                    const stressResponse = Math.max(0.5, 1 - depthStress) * 
-                        (this.dna.photosynthesis.adaptations.stressResponse || 0.5);
-                    
-                    // 総合効率
-                    const totalEfficiency = depthEfficiency * timeEfficiency * stressResponse;
-                    
-                    // 捕食者は光合成効率が低下
-                    const predatorPhotosynthesisMultiplier = this.isPredator ? 0.5 : 1.0;
-                    
-                    // 光合成によるエネルギー生成
-                    const baseRate = 0.002;
-                    this.energy += baseRate * totalEfficiency * predatorPhotosynthesisMultiplier;
-                    
-                    // 以下の重複コードを削除
-                    // const photosynthesisEnergy = 0.001 * 
-                    //     this.dna.photosynthesis.efficiency * 
-                    //     depthEfficiency * 
-                    //     timeEfficiency * 
-                    //     stressResponse * 
-                    //     predatorPhotosynthesisMultiplier;
-                    // 
-                    // this.energy += photosynthesisEnergy;
-                }
-                
-                // 毒素関連の処理
-                if (!this.isDead) {
-                    // 毒素の生成と蓄積
-                    const toxinProduction = (this.dna.toxins?.adaptation?.productionRate || 0.1) * 
-                        (1 - this.energy * 0.5); // エネルギーが少ないと毒素生成が活発化
-                    
-                    // 各種毒素の強化/弱化
-                    for (const toxinType of ['neural', 'cellular', 'digestive']) {
-                        const currentStrength = this.dna.toxins?.types?.[toxinType]?.strength || 0.1;
-                        const productionCost = this.dna.toxins?.types?.[toxinType]?.developmentCost || 0.3;
-                        
-                        // 毒素の強化（コストを消費）
-                        if (this.energy > productionCost * 2) {
-                            if (!this.dna.toxins) this.dna.toxins = { types: {} };
-                            if (!this.dna.toxins.types) this.dna.toxins.types = {};
-                            if (!this.dna.toxins.types[toxinType]) this.dna.toxins.types[toxinType] = {};
-                            
-                            this.dna.toxins.types[toxinType].strength = Math.min(
-                                1.0,
-                                currentStrength + toxinProduction * 0.1
-                            );
-                            this.energy -= productionCost * toxinProduction;
-                        } else {
-                            // エネルギーが少ない場合は毒素が弱化
-                            if (this.dna.toxins?.types?.[toxinType]?.strength) {
-                                this.dna.toxins.types[toxinType].strength *= 0.99;
-                            }
-                        }
-                    }
-                    
-                    // 毒素耐性の適応的変化
-                    for (const toxinType of ['neural', 'cellular', 'digestive']) {
-                        if (this.energy > 0.5) {
-                            // 高エネルギー状態では耐性が向上
-                            if (!this.dna.toxins) this.dna.toxins = { resistance: {} };
-                            if (!this.dna.toxins.resistance) this.dna.toxins.resistance = {};
-                            
-                            const currentResistance = this.dna.toxins.resistance[toxinType] || 0.1;
-                            this.dna.toxins.resistance[toxinType] = Math.min(
-                                1.0,
-                                currentResistance + 0.001
-                            );
-                        } else {
-                            // 低エネルギー状態では耐性が低下
-                            if (this.dna.toxins?.resistance?.[toxinType]) {
-                                this.dna.toxins.resistance[toxinType] *= 0.999;
-                            }
-                        }
-                    }
-                }
-                
-                // 成長
-                if (this.size < this.maxSize) {
-                    const growthRate = 0.0005 * this.dna.growthRate;
-                    this.size += growthRate;
-                    this.energy -= growthRate * 0.5;
-                }
-                
-                // エネルギー消費（効率と活動時間帯に基づく）
-                const mobilityFactor = this.dna.mobility * 0.01; // 移動能力が高いほどエネルギー消費も高い
-                this.energy -= energyDecayRate * 
-                    (1 - this.dna.efficiency * 0.01) * 
-                    activityMultiplier * 
-                    (1 + depthStress) *
-                    (1 + mobilityFactor);
-                
-                // 自然回復
-                this.energy += this.dna.regenerationRate * (1 - depthStress);
-                this.energy = Math.min(this.energy, 1.0);
-                
-                // 移動能力に応じた行動の前に物理的な制約を適用
-                if (this.dna.mobility > 0.1) {
-                    // 重力の影響を追加（より穏やかに）
-                    this.acceleration.z -= this.gravityStrength * 0.8;
-                    
-                    // 現在の速度の大きさを計算
-                    const currentSpeed = Math.sqrt(
-                        this.velocity.x * this.velocity.x +
-                        this.velocity.y * this.velocity.y +
-                        this.velocity.z * this.velocity.z
-                    );
-                    
-                    // 空気抵抗の計算（より滑らかに）
-                    if (currentSpeed > 0) {
-                        const dragForce = this.dragCoefficient * currentSpeed;
-                        const dragMultiplier = Math.max(0, 1 - dragForce / currentSpeed);
-                        this.velocity.x *= dragMultiplier;
-                        this.velocity.y *= dragMultiplier;
-                        this.velocity.z *= dragMultiplier;
-                    }
-                    
-                    // 既存の移動処理を継続（より滑らかに）
-                    const interaction = this.interact(lifeforms, environment);
-                    const boundaries = this.checkBoundaries();
-                    const territory = this.defendTerritory(lifeforms);
-                    
-                    // 加速度の平滑化
-                    const smoothAccel = {
-                        x: this.lastAcceleration.x * this.accelerationSmoothing + 
-                           (interaction.x + boundaries.x + territory.x) * (1 - this.accelerationSmoothing),
-                        y: this.lastAcceleration.y * this.accelerationSmoothing + 
-                           (interaction.y + boundaries.y + territory.y) * (1 - this.accelerationSmoothing),
-                        z: this.lastAcceleration.z * this.accelerationSmoothing + 
-                           (interaction.z + boundaries.z + territory.z) * (1 - this.accelerationSmoothing)
-                    };
-                    
-                    // 力を適用（より滑らかに）
-                    const movementMultiplier = this.dna.mobility * 
-                        (this.dna.efficiency || 0.5) * 
-                        Math.min(1.0, this.energy * 2);
-                    
-                    // 捕食者はより活発に動く
-                    const predatorBonus = this.isPredator ? 1.5 : 1.0;
-                    
-                    this.acceleration.x = smoothAccel.x * movementMultiplier * this.turnRate * predatorBonus;
-                    this.acceleration.y = smoothAccel.y * movementMultiplier * this.turnRate * predatorBonus;
-                    this.acceleration.z = smoothAccel.z * movementMultiplier * this.turnRate * predatorBonus;
-                    
-                    // 前回の加速度を保存
-                    this.lastAcceleration = smoothAccel;
-                    
-                    // 速度を更新（慣性を考慮）
-                    this.velocity.x = this.velocity.x * this.inertia + this.acceleration.x;
-                    this.velocity.y = this.velocity.y * this.inertia + this.acceleration.y;
-                    this.velocity.z = this.velocity.z * this.inertia + this.acceleration.z;
-                    
-                    // 速度を制限（より滑らかに）
-                    const speed = Math.sqrt(
-                        this.velocity.x * this.velocity.x + 
-                        this.velocity.y * this.velocity.y + 
-                        this.velocity.z * this.velocity.z
-                    );
-                    
-                    // 捕食者はより速く移動できる
-                    const maxSpeed = this.isPredator ? 
-                        0.8 * this.dna.speed * this.dna.mobility : 
-                        0.5 * this.dna.speed * this.dna.mobility;
-                    
-                    if (speed > maxSpeed) {
-                        const reduction = 1 - ((speed - maxSpeed) / speed) * 0.5;
-                        this.velocity.x *= reduction;
-                        this.velocity.y *= reduction;
-                        this.velocity.z *= reduction;
-                    }
-                    
-                    // 位置を更新
-                    this.position.x += this.velocity.x;
-                    this.position.y += this.velocity.y;
-                    this.position.z += this.velocity.z;
-                    
-                    // 加速度をリセット
-                    this.acceleration.x = 0;
-                    this.acceleration.y = 0;
-                    this.acceleration.z = 0;
-                }
-                
-                // 繁殖判定
-                if (this.energy > reproductionThreshold && Math.random() < this.dna.reproductionRate * 0.05) {
-                    this.reproduce(lifeforms);
-                }
-                
-                // 死亡判定
-                if (this.energy <= 0 || this.age >= maxAge) {
-                    this.isDead = true;
-                }
-                
-                // 環境ノイズへの適応を更新
-                this.updateEnvironmentalAdaptation(environment);
-                
-                // 交配による特殊能力の発現
-                if (this.dna._matingOffspring) {
-                    // 交配による子孫は遺伝子ハッキング能力が高い
-                    if (!this.dna.toxins) this.dna.toxins = { types: {} };
-                    if (!this.dna.toxins.types) this.dna.toxins.types = {};
-                    if (!this.dna.toxins.types.genetic) {
-                        this.dna.toxins.types.genetic = {
-                            strength: 0.3,
-                            developmentCost: 0.4,
-                            effectRange: 2.0,
-                            mutagenicPotential: 0.4
-                        };
-                    }
-                    
-                    // 成長に伴い遺伝子ハッキング能力が向上
-                    if (this.age > 100 && Math.random() < 0.01) {
-                        this.dna.toxins.types.genetic.strength *= 1.01;
-                        this.dna.toxins.types.genetic.mutagenicPotential *= 1.01;
-                        this.dna._geneticHackingPotential = (this.dna._geneticHackingPotential || 0.5) * 1.01;
-                    }
-                }
-                
-                // DNA修復システムを更新（一定確率で実行）
-                if (Math.random() < 0.05) { // 5%の確率で実行
-                    const repairResult = this.dnaRepairSystem.update();
-                    
-                    // 修復結果に基づいてフィードバック
-                    if (repairResult.repaired > 0) {
-                        // 修復成功のボーナス
-                        this.energy += 0.01 * repairResult.repaired;
-                    }
-                }
-            }
-            
-            // 認知階層システムを更新
-            const cognitiveDecision = this.cognition.process(this, environment, lifeforms);
-            
-            // 認知的決定に基づいて行動を調整
-            this.applyDecision(cognitiveDecision);
-            
-            // メタプログラミングシステムを更新
-            const metaDecision = this.metaprogrammingSystem.update(environment, lifeforms);
-            
-            // メタプログラミングの決定に基づいて行動を調整
-            if (metaDecision) {
-                this.applyMetaDecision(metaDecision);
-            }
-            
-            // 認知能力の発達を更新
-            this.updateCognitiveAbilities();
-            
-            // 行動パターンを更新
-            this.updateBehavior(lifeforms, environment);
-            
-            // 通信システムの更新
-            this.communicationSystem.update(lifeforms);
-        }
-        
-        // メタプログラミングの決定を適用
-        applyMetaDecision(decision) {
-            if (!decision || !decision.action) return;
-            
-            switch (decision.action) {
-                case 'move_to_resource':
-                    // リソースに向かう
-                    if (decision.direction) {
-                        this.acceleration.x += decision.direction.x;
-                        this.acceleration.y += decision.direction.y;
-                        this.acceleration.z += decision.direction.z;
-                    }
-                    
-                    // 成功フィードバック
-                    if (decision.target && this.getDistanceTo(decision.target) < 2.0) {
-                        this.metaprogrammingSystem.provideFeedback('resourceGathering', true);
-                    }
-                    break;
-                    
-                case 'flee':
-                    // 脅威から逃げる
-                    if (decision.direction) {
-                        this.acceleration.x += decision.direction.x * 1.5; // 緊急性を反映
-                        this.acceleration.y += decision.direction.y * 1.5;
-                        this.acceleration.z += decision.direction.z * 1.5;
-                    }
-                    
-                    // 成功フィードバック（脅威との距離が増加した場合）
-                    if (decision.threat && this.getDistanceTo(decision.threat.lifeform) > decision.threat.distance) {
-                        this.metaprogrammingSystem.provideFeedback('predatorAvoidance', true);
-                    }
-                    break;
-                    
-                case 'approach_mate':
-                    // 交配相手に近づく
-                    if (decision.direction) {
-                        this.acceleration.x += decision.direction.x;
-                        this.acceleration.y += decision.direction.y;
-                        this.acceleration.z += decision.direction.z;
-                    }
-                    break;
-                    
-                case 'attempt_mating':
-                    // 交配を試みる
-                    if (decision.target) {
-                        const success = this.attemptMating(decision.target);
-                        this.metaprogrammingSystem.provideFeedback('mating', success);
-                    }
-                    break;
-                    
-                case 'explore':
-                    // 探索行動
-                    if (decision.direction) {
-                        this.acceleration.x += decision.direction.x * 0.8;
-                        this.acceleration.y += decision.direction.y * 0.8;
-                        this.acceleration.z += decision.direction.z * 0.8;
-                    }
-                    
-                    // 新しい領域の探索は成功とみなす（単純化）
-                    if (Math.random() < 0.1) {
-                        this.metaprogrammingSystem.provideFeedback('exploration', true);
-                    }
-                    break;
-                    
-                default:
-                    // その他の行動
-                    break;
-            }
-        }
-        
-        // リソース検出時の処理を拡張
-        detectResources(environment) {
-            // 環境からリソースを検出する処理
-            const resources = [];
-            
-            // 知覚範囲を計算
-            const perceptionRadius = 15 * this.dna.perception;
-            
-            // 環境内のリソースを検索
-            if (environment && environment.resources) {
-                for (const [position, resourceMap] of environment.resources) {
-                    const [x, y] = position.split(',').map(Number);
-                    const dx = x - this.position.x;
-                    const dy = y - this.position.y;
-                    const distance = Math.sqrt(dx * dx + dy * dy);
-                    
-                    if (distance < perceptionRadius) {
-                        for (const [type, amount] of resourceMap) {
-                            resources.push({
-                                type: type,
-                                position: { x, y, z: 0 },
-                                amount: amount,
-                                distance: distance
-                            });
-                        }
-                    }
-                }
-            }
-            
-            // 発見したリソースを記録
-            if (resources.length > 0) {
-                this.lastFoundResource = {
-                    type: resources[0].type,
-                    x: resources[0].position.x,
-                    y: resources[0].position.y,
-                    z: resources[0].position.z,
-                    amount: resources[0].amount,
-                    time: Date.now()
-                };
-            }
-            
-            return resources;
-        }
-        
-        // 環境ノイズへの適応を更新
-        updateEnvironmentalAdaptation(environment) {
-            const now = Date.now();
-            const timeDiff = (now - this.adaptationState.lastAdaptation) / 1000;
-            
-            // CPU負荷（温度）への適応
-            const tempDiff = Math.abs(this.adaptationState.temperatureTolerance - environment.systemState.cpuLoad);
-            if (tempDiff > 0.1) {
-                const adaptationChange = Math.min(0.1, tempDiff * 0.05);
-                this.adaptationState.temperatureTolerance += 
-                    (environment.systemState.cpuLoad > this.adaptationState.temperatureTolerance) ? adaptationChange : -adaptationChange;
-                this.energy -= this.adaptationCosts.temperature * adaptationChange;
-            }
-            
-            // メモリ使用率（乱流）への適応
-            const turbDiff = Math.abs(this.adaptationState.turbulenceResistance - environment.systemState.memoryUsage);
-            if (turbDiff > 0.1) {
-                const adaptationChange = Math.min(0.1, turbDiff * 0.05);
-                this.adaptationState.turbulenceResistance += 
-                    (environment.systemState.memoryUsage > this.adaptationState.turbulenceResistance) ? adaptationChange : -adaptationChange;
-                this.energy -= this.adaptationCosts.turbulence * adaptationChange;
-            }
-            
-            // ネットワークレイテンシー（視界）への適応
-            const visualDiff = Math.abs(this.adaptationState.visualAdaptation - (1 - environment.systemState.networkLatency));
-            if (visualDiff > 0.1) {
-                const adaptationChange = Math.min(0.1, visualDiff * 0.05);
-                this.adaptationState.visualAdaptation += 
-                    ((1 - environment.systemState.networkLatency) > this.adaptationState.visualAdaptation) ? adaptationChange : -adaptationChange;
-                this.energy -= this.adaptationCosts.visual * adaptationChange;
-            }
-            
-            this.adaptationState.lastAdaptation = now;
-        }
-        
-        // 縄張り防衛の行動を追加
-        defendTerritory(lifeforms) {
-            if (this.dna.territoriality < 0.2) return { x: 0, y: 0, z: 0 };
-            
-            let force = { x: 0, y: 0, z: 0 };
             let count = 0;
+            const checkRadius = 5;
             
-            const territoryRadius = 10 * this.dna.territoriality;
-            
-            for (const other of lifeforms) {
-                if (other === this || other.isDead) continue;
+            for (const toxic of this.toxicMatters) {
+                if (!toxic || toxic.decompositionStage === 2) continue;
                 
-                const dx = other.position.x - this.position.x;
-                const dy = other.position.y - this.position.y;
-                const dz = other.position.z - this.position.z;
-                const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                const dx = this.position.x - toxic.position.x;
+                const dy = this.position.y - toxic.position.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
                 
-                if (distance < territoryRadius) {
-                    // 縄張り内の他の生物を追い払う
-                    force.x -= dx * this.dna.territoriality;
-                    force.y -= dy * this.dna.territoriality;
-                    force.z -= dz * this.dna.territoriality;
+                if (distance < checkRadius) {
                     count++;
                 }
             }
             
-            if (count > 0) {
-                force.x /= count;
-                force.y /= count;
-                force.z /= count;
-            }
-            
-            return force;
+            return count;
         }
         
-        // DNAを3進数的な塩基配列に変換するメソッド
-        encodeDNA() {
-            const BASE_SYMBOLS = ['0', '1', '2'];  // 3種類の塩基記号
-            const geneSequence = [];
+        // 物理演算を適用
+        applyPhysics() {
+            // 重力（下向きの力）- 運動力が低いほど重力の影響が小さくなる
+            const gravity = 0.01 * this.mass * (0.5 + this.dna.speed * 0.5);
             
-            // バージョン情報
-            geneSequence.push('V1');
+            // 浮力（上向きの力）- 運動力が低いほど浮力が強くなる
+            const depth = this.position.y / height;
+            const buoyancyMultiplier = 1.5 - this.dna.speed; // 運動力が低いほど大きな値に
+            const buoyancyForce = -0.015 * this.buoyancy * (depth + 0.2) * buoyancyMultiplier;
             
-            // 数値を3進数的な塩基配列に変換するヘルパー関数
-            function encodeValue(value, length = 8) {
-                // 0-1の値を0-255に変換
-                const normalizedValue = Math.min(255, Math.max(0, Math.floor(value * 256)));
-                let sequence = '';
-                
-                // 3進数的な表現に変換
-                let remaining = normalizedValue;
-                for (let i = 0; i < length; i++) {
-                    const index = remaining % 3;
-                    sequence = BASE_SYMBOLS[index] + sequence;
-                    remaining = Math.floor(remaining / 3);
-                }
-                
-                return sequence;
-            }
+            // 水の抵抗（速度に比例、逆向きの力）- 運動力が低いほど抵抗が大きくなる
+            const dragMultiplier = 1.2 - this.dna.speed * 0.5;
+            const dragForce = {
+                x: -this.velocity.x * this.dragCoefficient * dragMultiplier,
+                y: -this.velocity.y * this.dragCoefficient * dragMultiplier,
+                z: 0
+            };
             
-            // 基本特性のエンコード
-            geneSequence.push('BAS');
-            [
-                this.dna.speed || 0.5,
-                this.dna.efficiency || 0.5,
-                this.dna.perception || 0.5,
-                this.dna.foodAttraction || 0.5,
-                this.dna.socialBehavior || 0,
-                this.dna.reproductionRate || 0.3,
-                this.dna.predatory || 0.5,
-                this.dna.size || 0.3
-            ].forEach(value => {
-                geneSequence.push(encodeValue(value));
-            });
-            
-            // 光合成システムのエンコード
-            geneSequence.push('PHO');
-            geneSequence.push(encodeValue(this.dna.photosynthesis?.efficiency || 0.2));
-            geneSequence.push(encodeValue((this.dna.photosynthesis?.depth?.optimal || 0) / 20 + 0.5)); // -10から10を0-1に正規化
-            geneSequence.push(encodeValue(this.dna.photosynthesis?.depth?.range || 0.2));
-            
-            // 波長効率のエンコード
-            (this.dna.photosynthesis?.wavelengths || []).forEach(wave => {
-                geneSequence.push(encodeValue(wave?.efficiency || 0.2));
-            });
-            
-            geneSequence.push(encodeValue(this.dna.photosynthesis?.adaptations?.nightMode || 0.1));
-            geneSequence.push(encodeValue(this.dna.photosynthesis?.adaptations?.stressResponse || 0.2));
-            
-            // 毒素システムのエンコード
-            geneSequence.push('TOX');
-            ['neural', 'cellular', 'digestive'].forEach(type => {
-                geneSequence.push(encodeValue(this.dna.toxins?.types?.[type]?.strength || 0.1));
-                geneSequence.push(encodeValue(this.dna.toxins?.types?.[type]?.effectRange || 1.0));
-            });
-            
-            // 抵抗性のエンコード
-            geneSequence.push('RES');
-            ['neural', 'cellular', 'digestive'].forEach(type => {
-                geneSequence.push(encodeValue(this.dna.toxins?.resistance?.[type] || 0.1));
-            });
-            
-            // その他の特性のエンコード
-            geneSequence.push('OTH');
-            [
-                this.dna.mobility || 0.3,
-                this.dna.growthRate || 0.2,
-                this.dna.separationWeight || 0.3,
-                this.dna.alignmentWeight || 0.2,
-                this.dna.cohesionWeight || 0.2,
-                this.dna.depthPreference || 0,
-                this.dna.depthTolerance || 0.2,
-                this.dna.regenerationRate || 0.05,
-                this.dna.offspringCount || 1,
-                this.dna.parentalCare || 0.1,
-                this.dna.nocturnality || 0.4,
-                this.dna.territoriality || 0.1
-            ].forEach(value => {
-                geneSequence.push(encodeValue(value));
-            });
-            
-            return geneSequence.join('|');
+            // 合力を加速度に適用
+            this.acceleration.y += gravity + buoyancyForce;
+            this.acceleration.x += dragForce.x;
+            this.acceleration.y += dragForce.y;
         }
         
-        // 3進数的な塩基配列からDNAを解読するメソッド
-        static decodeDNA(sequence, mutationRate = 0.1) {
-            try {
-                const genes = sequence.split('|');
-                let index = 0;
+        // 生命体の更新
+        update(lifeforms, foods, toxicMatters) {
+            if (this.isDead) return;
+            
+            // 年齢を増加
+            this.age++;
+            
+            // 酸素消費と二酸化炭素生成の処理
+            let oxygenAvailable = false;
+            let consumedOxygen = 0;
+            let suffocating = true; // 窒息状態のフラグ
+            
+            // 現在位置の酸素を消費
+            const currentOxygen = getOxygenAt(this.position.x, this.position.y);
+            const baseOxygenNeed = 0.04; // 基本酸素必要量を適度に調整（0.05から0.04に）
+            const neededOxygen = baseOxygenNeed * (1 - this.dna.oxygenEfficiency * 0.4); // 効率の影響を40%に緩和
+            
+            if (currentOxygen > 0) {
+                consumedOxygen = Math.min(neededOxygen, currentOxygen);
+                changeOxygenAt(this.position.x, this.position.y, -consumedOxygen);
+                oxygenAvailable = true;
+                suffocating = consumedOxygen < neededOxygen * 0.6; // 必要量の60%以下で窒息状態に（70%から緩和）
                 
-                // 3進数的な塩基配列から数値に変換するヘルパー関数
-                function decodeValue(sequence) {
-                    let value = 0;
-                    for (let i = 0; i < sequence.length; i++) {
-                        value = value * 3 + parseInt(sequence[i]);
+                // CO2を生成（消費した酸素量に応じて）
+                const co2Amount = consumedOxygen * 1.1; // CO2生成量を適度に調整（1.2から1.1に）
+                changeCO2At(this.position.x, this.position.y, co2Amount);
+            }
+            
+            // 窒息状態の場合、エネルギー消費が増加
+            if (suffocating) {
+                this.energy -= energyDecayRate * 4; // ペナルティを適度に調整（5倍から4倍に）
+                
+                // 窒息による色の変化を調整
+                this.suffocationLevel = Math.min(1, this.suffocationLevel + 0.07); // 0.1から0.07に緩和
+            } else {
+                // 窒息状態からの回復を調整
+                this.suffocationLevel = Math.max(0, this.suffocationLevel - 0.015); // 0.01から0.015に回復速度を上昇
+            }
+            
+            // 周囲のCO2濃度が高すぎる場合の処理
+            let highCO2 = false;
+            for (let x = 0; x < gridWidth; x++) {
+                for (let y = 0; y < gridHeight; y++) {
+                    if (co2Map[x][y] > 0.6) { // CO2耐性閾値を適度に調整（0.5から0.6に）
+                        highCO2 = true;
+                        break;
                     }
-                    // 突然変異の可能性
-                    if (Math.random() < mutationRate) {
-                        // ランダムな位置の塩基を変異させる
-                        const pos = Math.floor(Math.random() * sequence.length);
-                        const newBase = Math.floor(Math.random() * 3);
-                        value = value + (newBase - parseInt(sequence[pos])) * Math.pow(3, sequence.length - pos - 1);
-                    }
-                    return value / 256; // 0-1の範囲に正規化
                 }
-                
-                // バージョンチェック
-                if (genes[index++] !== 'V1') {
-                    throw new Error('Invalid DNA version');
-                }
-                
-                const dna = {};
-                
-                // 基本特性のデコード
-                if (genes[index++] === 'BAS') {
-                    dna.speed = decodeValue(genes[index++]);
-                    dna.efficiency = decodeValue(genes[index++]);
-                    dna.perception = decodeValue(genes[index++]);
-                    dna.foodAttraction = decodeValue(genes[index++]);
-                    dna.socialBehavior = decodeValue(genes[index++]);
-                    dna.reproductionRate = decodeValue(genes[index++]);
-                    dna.predatory = decodeValue(genes[index++]);
-                    dna.size = decodeValue(genes[index++]);
-                }
-                
-                // 光合成システムのデコード
-                if (genes[index++] === 'PHO') {
-                    dna.photosynthesis = {
-                        efficiency: decodeValue(genes[index++]),
-                        depth: {
-                            optimal: (decodeValue(genes[index++]) - 0.5) * 20, // 0-1から-10から10に逆正規化
-                            range: decodeValue(genes[index++])
-                        },
-                        wavelengths: [],
-                        adaptations: {
-                            nightMode: decodeValue(genes[index + 3]),
-                            stressResponse: decodeValue(genes[index + 4])
-                        }
-                    };
-                    
-                    // 波長効率のデコード
-                    for (let i = 0; i < 3; i++) {
-                        dna.photosynthesis.wavelengths.push({
-                            min: 400 + i * 100,
-                            max: 500 + i * 100,
-                            efficiency: decodeValue(genes[index++])
-                        });
-                    }
-                    index += 2; // adaptationsの分
-                }
-                
-                // 毒素システムのデコード
-                if (genes[index++] === 'TOX') {
-                    dna.toxins = {
-                        types: {
-                            neural: { strength: decodeValue(genes[index++]), effectRange: decodeValue(genes[index++]) },
-                            cellular: { strength: decodeValue(genes[index++]), effectRange: decodeValue(genes[index++]) },
-                            digestive: { strength: decodeValue(genes[index++]), effectRange: decodeValue(genes[index++]) }
-                        }
-                    };
-                }
+                if (highCO2) break;
+            }
+            
+            // CO2濃度が高い場合のペナルティを調整
+            if (highCO2) {
+                this.energy -= 0.025 * (1 - this.dna.oxygenTolerance); // 0.03から0.025に緩和
+            }
+            
+            // 自然回復（酸素が十分にある場合のみ）
+            if (oxygenAvailable && !highCO2) {
+                this.energy += this.dna.regenerationRate;
+                this.energy = Math.min(this.energy, 1.0);
+            }
+            
+            // 食物を探す力（バクテリアも含める）
+            const foodSeeking = this.seekFood(foods, bacteria);
+            
+            // 他の生命体との相互作用
+            const interaction = this.interact(lifeforms, toxicMatters);
+            
+            // 境界チェックを更新
+            const boundaries = this.checkBoundaries();
+            
+            // 力を適用
+            this.acceleration.x += (foodSeeking.x + interaction.x + boundaries.x) * 0.5;
+            this.acceleration.y += (foodSeeking.y + interaction.y + boundaries.y) * 0.5;
+            this.acceleration.z += (foodSeeking.z + interaction.z + boundaries.z) * 0.5;
+            
+            // 物理演算を適用
+            this.applyPhysics();
+            
+            // 速度を更新
+            this.velocity.x += this.acceleration.x;
+            this.velocity.y += this.acceleration.y;
+            this.velocity.z += this.acceleration.z;
+            
+            // 速度を制限
+            const speed = Math.sqrt(
+                this.velocity.x * this.velocity.x + 
+                this.velocity.y * this.velocity.y + 
+                this.velocity.z * this.velocity.z
+            );
+            
+            const maxSpeed = 0.5 * this.dna.speed;
+            
+                if (speed > maxSpeed) {
+                    this.velocity.x = (this.velocity.x / speed) * maxSpeed;
+                    this.velocity.y = (this.velocity.y / speed) * maxSpeed;
+                    this.velocity.z = (this.velocity.z / speed) * maxSpeed;
+            }
+            
+            // 位置を更新
+            this.position.x += this.velocity.x;
+            this.position.y += this.velocity.y;
+            this.position.z += this.velocity.z;
+            
+            // 加速度をリセット
+            this.acceleration.x = 0;
+            this.acceleration.y = 0;
+            this.acceleration.z = 0;
+            
+            // 食物との衝突判定と摂取（バクテリアも含める）
+            this.eatFood(foods, bacteria);
+            
+            // 繁殖判定
+            if (this.energy > reproductionThreshold && 
+                Math.random() < this.dna.reproductionRate * 0.02 && // 0.05から0.02に減少
+                time - this.lastReproductionTime > 150) {  // 100から150に増加
+                this.reproduce(lifeforms);
+            }
+            
+            // 死亡判定をシンプルに
+            if (this.energy <= 0 || this.age >= maxAge) {
+                this.isDead = true;
+            }
 
-                // 抵抗性のデコード
-                if (genes[index++] === 'RES') {
-                    if (!dna.toxins) dna.toxins = {};
-                    dna.toxins.resistance = {
-                        neural: decodeValue(genes[index++]),
-                        cellular: decodeValue(genes[index++]),
-                        digestive: decodeValue(genes[index++])
-                    };
-                    
-                    // 適応システムの初期化
-                    dna.toxins.adaptation = {
-                        productionRate: Math.random() * 0.3,
-                        storageCapacity: 0.5 + Math.random(),
-                        releaseControl: Math.random()
-                    };
+            // 毒素との相互作用によるダメージ
+            const { totalDamage } = this.checkToxicInteraction(toxicMatters);
+            if (totalDamage > 0) {
+                this.energy -= totalDamage;
+                if (this.energy <= 0) {
+                    this.isDead = true;
+                    return;
                 }
-                
-                // その他の特性のデコード
-                if (genes[index++] === 'OTH') {
-                    dna.mobility = decodeValue(genes[index++]);
-                    dna.growthRate = decodeValue(genes[index++]);
-                    dna.separationWeight = decodeValue(genes[index++]);
-                    dna.alignmentWeight = decodeValue(genes[index++]);
-                    dna.cohesionWeight = decodeValue(genes[index++]);
-                    dna.depthPreference = (decodeValue(genes[index++]) - 0.5) * 20; // -10から10の範囲
-                    dna.depthTolerance = decodeValue(genes[index++]);
-                    dna.regenerationRate = decodeValue(genes[index++]);
-                    dna.offspringCount = Math.max(1, Math.floor(decodeValue(genes[index++]) * 4)); // 1-4の範囲
-                    dna.parentalCare = decodeValue(genes[index++]);
-                    dna.nocturnality = decodeValue(genes[index++]);
-                    dna.territoriality = decodeValue(genes[index++]);
-                }
-                
-                // 遺伝子ネットワークは固定
-                dna.geneNetwork = {
-                    photosynthesis: {
-                        enhancedBy: ['efficiency', 'regenerationRate'],
-                        suppressedBy: ['toxins.adaptation.productionRate'],
-                        influences: ['energy', 'growth']
-                    },
-                    toxins: {
-                        enhancedBy: ['efficiency', 'size'],
-                        suppressedBy: ['photosynthesis.efficiency'],
-                        influences: ['predation', 'defense']
-                    }
-                };
-                
-                // ランダムな突然変異や欠落を導入
-                Object.keys(dna).forEach(key => {
-                    if (typeof dna[key] === 'number') {
-                        if (Math.random() < mutationRate * 0.1) { // 完全な欠落
-                            delete dna[key];
-                        } else if (Math.random() < mutationRate) { // 変異
-                            dna[key] *= 1 + (Math.random() * 0.4 - 0.2);
-                        }
-                    } else if (key === 'photosynthesis' && Math.random() < mutationRate * 0.05) {
-                        // 光合成能力の重大な欠損
-                        dna.photosynthesis.efficiency *= 0.1;
-                        dna._requires_host = true; // 宿主依存フラグ
-                    }
-                });
-                
-                // エネルギー獲得に関する重要な機能の欠損をチェック
-                if (!dna.photosynthesis || dna.photosynthesis.efficiency < 0.1) {
-                    if (!dna.predatory || dna.predatory < 0.3) {
-                        // 両方の主要なエネルギー獲得手段が欠損している場合
-                        dna._requires_host = true;
-                        dna._host_dependency = Math.random(); // 宿主への依存度
-                    }
-                }
-                
-                return dna;
-            } catch (error) {
-                console.error('DNA decoding error:', error);
-                // エラーが発生した場合でも、部分的に解読できたDNAを使用
-                // 解読できなかった部分はundefinedのまま
-                return {
-                    ...dna,  // 部分的に解読できた情報を保持
-                    _decoding_error: true,  // エラーフラグを追加
-                    _error_type: error.message  // エラー情報を保持
-                };
             }
         }
         
-        // 繁殖メソッドを更新
+        // 食物を食べる
+        eatFood(foods, bacteria) {  // bacteriaパラメータを追加
+            const eatDistance = 4;
+            
+            // 植物を食べる
+            for (let i = foods.length - 1; i >= 0; i--) {
+                const food = foods[i];
+                const dx = this.position.x - food.position.x;
+                const dy = this.position.y - food.position.y;
+                const dz = this.position.z - food.position.z;
+                const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                
+                // 植物の根本（底部）付近でのみ食べられるように
+                const isNearBase = Math.abs(this.position.y - food.position.y) < 3;
+                
+                // 植物が十分に成長していない場合のみ食べられる
+                const isEatable = food.growthHeight < 5 && food.size < food.maxSize * 0.4;
+                
+                if (distance < eatDistance && isNearBase && isEatable) {
+                    const damageAmount = 0.2 + (this.dna.size * 0.3);
+                    const killed = food.takeDamage(damageAmount);
+                    // エネルギー獲得量を植物の成長度に応じて減少
+                    const maturityPenalty = 1 - (food.growthHeight / 5);
+                    const gainedEnergy = food.size * food.energy * 0.3 * maturityPenalty;
+                    this.energy += gainedEnergy;
+                    this.energy = Math.min(this.energy, 1.0);
+
+                    if (killed) {
+                        foods.splice(i, 1);
+                    }
+                }
+            }
+
+            // バクテリアを食べる
+            for (let i = bacteria.length - 1; i >= 0; i--) {
+                const bacterium = bacteria[i];
+                const dx = this.position.x - bacterium.position.x;
+                const dy = this.position.y - bacterium.position.y;
+                const dz = this.position.z - bacterium.position.z;
+                const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                
+                if (distance < eatDistance) {
+                    // バクテリアを捕食
+                    const gainedEnergy = bacterium.energy * 0.4;
+                    this.energy += gainedEnergy;
+                    this.energy = Math.min(this.energy, 1.0);
+
+                    // バクテリアの再生処理
+                    const newBacterium = new PurifierBacteria(
+                        bacterium.position.x + (Math.random() - 0.5) * 4,
+                        bacterium.position.y + (Math.random() - 0.5) * 4,
+                        0
+                    );
+                    newBacterium.energy = 0.3;
+                    newBacterium.purificationEfficiency = bacterium.purificationEfficiency * 0.9;
+                    bacteria.splice(i, 1);
+                    bacteria.push(newBacterium);
+                }
+            }
+        }
+        
+        // 繁殖
         reproduce(lifeforms) {
             if (lifeforms.length >= maxLifeforms) return;
-            if (time - this.lastReproductionTime < 50) return;
+            if (time - this.lastReproductionTime < 100) return;  // 50から100に増加
             
-            // 交配による繁殖を優先（最近交配した場合）
-            if (this._lastMatingTime && time - this._lastMatingTime < 100) {
-                // 交配後は通常の繁殖を抑制
-                return;
-            }
-            
-            // 宿主依存の個体の繁殖処理
-            if (this.dna._requires_host) {
-                if (!this._attached_host) return; // 宿主がいない場合は繁殖不可
-                
-                // 宿主のエネルギーを使って繁殖
-                const hostEnergy = this._attached_host.energy;
-                if (hostEnergy < 0.4) return; // 宿主のエネルギーが不足している場合は繁殖不可
-                
-                const energyCost = reproductionCost * 1.5; // 通常より高いエネルギーコスト
-                this._attached_host.energy -= energyCost;
-                
-                // DNAを3進数的な塩基配列に変換
-                const encodedDNA = this.encodeDNA();
-                const childDna = Lifeform.decodeDNA(encodedDNA, mutationRate * 1.2); // より高い突然変異率
-                
-                // 子孫は必ず宿主依存
-                childDna._requires_host = true;
-                childDna._host_dependency = Math.min(1.0, (this.dna._host_dependency || 0.5) * (1 + (Math.random() - 0.5) * 0.2));
-                
-                const child = new Lifeform(
-                    this.position.x + (Math.random() - 0.5) * 2,
-                    this.position.y + (Math.random() - 0.5) * 2,
-                    this.position.z + (Math.random() - 0.5) * 2,
-                    energyCost * 0.5,
-                    childDna
-                );
-                
-                lifeforms.push(child);
-                this.lastReproductionTime = time;
-                return;
-            }
-            
-            // 通常の繁殖処理（既存のコード）
             this.lastReproductionTime = time;
             
-            const parentalInvestment = reproductionCost * (1 + this.dna.parentalCare);
+            // 親のエネルギー消費（子育ての度合いに応じて）
+            const parentalInvestment = this.energy * 0.5; // 親のエネルギーの半分を投資
             this.energy -= parentalInvestment;
             
-            const offspringCount = this.dna.offspringCount || 1;
-            const energyPerChild = (parentalInvestment * this.dna.parentalCare) / offspringCount;
+            // 複数の子孫を生成
+            const offspringCount = this.dna.offspringCount;
+            const energyPerChild = parentalInvestment / offspringCount; // 投資したエネルギーを均等に分配
             
             for (let i = 0; i < offspringCount; i++) {
-                // DNAを3進数的な塩基配列に変換
-                const encodedDNA = this.encodeDNA();
-                
-                // コードを解読して新しいDNAを生成（この過程で突然変異や欠落が発生する可能性がある）
-                const childDna = Lifeform.decodeDNA(encodedDNA, mutationRate);
-                
-                // 遺伝子ハッキングの経験が繁殖に影響
-                if (this._immune_response || this._acquiredGenes) {
-                    // 遺伝子ハッキングの経験がある場合、子孫の防御または攻撃能力を強化
+                // 子孫のDNAを作成（突然変異を含む）
+                const childDna = {};
+                for (const [key, value] of Object.entries(this.dna)) {
+                    // 各特性に突然変異を適用
+                    const mutation = (Math.random() * 2 - 1) * mutationRate;
+                    // 特性に応じて突然変異の影響を調整
+                    const mutationScale = key === 'predatory' ? 0.5 : 1.0;
+                    childDna[key] = value + mutation * mutationScale;
                     
-                    if (this._immune_response) {
-                        // 防御能力の強化
-                        childDna.toxins = childDna.toxins || {};
-                        childDna.toxins.resistance = childDna.toxins.resistance || {};
-                        childDna.toxins.resistance.genetic = (childDna.toxins.resistance.genetic || 0.1) * 1.1;
-                        
-                        // 防御特化の特性
-                        childDna._defensiveAdaptations = true;
-                    }
-                    
-                    if (this._acquiredGenes && this._acquiredGenes.length > 0) {
-                        // 攻撃能力の強化
-                        childDna.toxins = childDna.toxins || {};
-                        childDna.toxins.types = childDna.toxins.types || {};
-                        childDna.toxins.types.genetic = childDna.toxins.types.genetic || {
-                            strength: 0.2,
-                            developmentCost: 0.5,
-                            effectRange: 1.5,
-                            mutagenicPotential: 0.3
-                        };
-                        
-                        // 獲得した遺伝子の影響
-                        childDna.toxins.types.genetic.strength *= 1.1;
-                        childDna.toxins.types.genetic.mutagenicPotential *= 1.1;
-                        
-                        // 攻撃特化の特性
-                        childDna._offensiveAdaptations = true;
+                    // 値を適切な範囲に制限
+                    if (key === 'socialBehavior') {
+                        childDna[key] = Math.max(-1.0, Math.min(1.0, childDna[key]));
+                    } else if (key === 'predatory') {
+                        childDna[key] = Math.max(0.0, Math.min(1.0, childDna[key]));
+                    } else if (key === 'offspringCount') {
+                        childDna[key] = Math.max(1, Math.min(5, Math.round(childDna[key])));
+                    } else {
+                        childDna[key] = Math.max(0.1, Math.min(1.5, childDna[key]));
                     }
                 }
                 
-                const offsetDistance = 2 + (this.dna.parentalCare || 0.1) * 3;
+                // 子孫を生成（エネルギーは親からの分配のみ）
+                const offsetDistance = 2 + this.dna.parentalCare * 3;
                 const offsetX = (Math.random() - 0.5) * offsetDistance;
                 const offsetY = (Math.random() - 0.5) * offsetDistance;
                 const offsetZ = (Math.random() - 0.5) * offsetDistance;
@@ -2059,614 +731,928 @@ document.addEventListener('DOMContentLoaded', () => {
                     this.position.x + offsetX,
                     this.position.y + offsetY,
                     this.position.z + offsetZ,
-                    0.3 + energyPerChild,
+                    energyPerChild, // 親から分配されたエネルギーのみを使用
                     childDna
                 );
                 
                 lifeforms.push(child);
             }
         }
-        
-        processMetabolism(environment) {
-            if (this.isDead) return;
 
-            const currentTime = time;
-            if (currentTime - this.metabolicState.lastMetabolism < 10) return;
-            this.metabolicState.lastMetabolism = currentTime;
+        // 毒素との相互作用をチェック
+        checkToxicInteraction(toxicMatters) {
+            let totalDamage = 0;
+            let nearestToxic = null;
+            let nearestDistance = Infinity;
 
-            // 光合成による代謝産物生成（効率を調整）
-            if (this.dna.photosynthesis?.efficiency > 0.2) {
-                // 光合成効率を向上（0.1→0.15）
-                const glucoseProduction = this.dna.photosynthesis.efficiency * 0.15;
-                // 酸素生成比率を調整（0.5→0.6）
-                const oxygenProduction = glucoseProduction * 0.6;
-                
-                environment.addResource(METABOLIC_PRODUCTS.GLUCOSE, this.position, glucoseProduction);
-                environment.addResource(METABOLIC_PRODUCTS.OXYGEN, this.position, oxygenProduction);
-                
-                // 副産物としてアミノ酸の生成確率と量を調整
-                if (Math.random() < 0.15) { // 確率を0.1から0.15に増加
-                    environment.addResource(METABOLIC_PRODUCTS.AMINO_ACIDS, this.position, 0.08); // 量を0.05から0.08に増加
-                }
-                
-                // エネルギーコストを追加
-                this.energy -= glucoseProduction * 0.05; // 光合成にもわずかなエネルギーコスト
-            }
+            for (const toxic of toxicMatters) {
+                if (toxic.decompositionStage !== 0) continue; // 未分解の毒素のみ
 
-            // 毒素生成（効率とコストのバランスを調整）
-            if (this.dna.toxins?.adaptation?.productionRate > 0.3) {
-                // 毒素生成量を調整（0.05→0.04）- 少し抑制
-                const toxinProduction = this.dna.toxins.adaptation.productionRate * 0.04;
-                
-                // 主要な毒素タイプを判定
-                let dominantToxin = 'neural';
-                let maxStrength = this.dna.toxins?.types?.neural?.strength || 0;
-                
-                if ((this.dna.toxins?.types?.cellular?.strength || 0) > maxStrength) {
-                    dominantToxin = 'cellular';
-                    maxStrength = this.dna.toxins.types.cellular.strength;
-                }
-                if ((this.dna.toxins?.types?.digestive?.strength || 0) > maxStrength) {
-                    dominantToxin = 'digestive';
-                    maxStrength = this.dna.toxins.types.digestive.strength;
-                }
-                if ((this.dna.toxins?.types?.genetic?.strength || 0) > maxStrength) {
-                    dominantToxin = 'genetic';
-                    maxStrength = this.dna.toxins.types.genetic.strength;
-                }
-                
-                environment.addResource(METABOLIC_PRODUCTS.TOXINS, this.position, toxinProduction, dominantToxin);
-                // 毒素生成のエネルギーコストを増加（0.1→0.15）
-                this.energy -= toxinProduction * 0.15;
-            }
-
-            // 周囲の資源を探索・消費（効率を調整）
-            const nearbyResources = environment.getResources(this.position, 2);
-            let totalResourceGain = 0;
-
-            nearbyResources.forEach((amount, type) => {
-                if (type === METABOLIC_PRODUCTS.GLUCOSE) {
-                    // グルコースの消費効率を調整
-                    const consumed = Math.min(amount, 0.12) * this.metabolicState.resourceEfficiency;
-                    // グルコースからのエネルギー変換効率を向上
-                    totalResourceGain += consumed * 1.2;
-                    environment.addResource(type, this.position, -consumed);
-                } else if (type === METABOLIC_PRODUCTS.AMINO_ACIDS) {
-                    // アミノ酸の消費効率を調整
-                    const consumed = Math.min(amount, 0.08) * this.metabolicState.resourceEfficiency;
-                    // アミノ酸からのエネルギー変換効率を向上
-                    totalResourceGain += consumed * 1.5;
-                    environment.addResource(type, this.position, -consumed);
-                    
-                    // アミノ酸消費による成長促進効果
-                    if (Math.random() < 0.2) {
-                        this.dna.growthRate *= 1.001;
-                    }
-                }
-            });
-
-            this.energy = Math.min(1.0, this.energy + totalResourceGain);
-            
-            // 代謝廃棄物の生成
-            if (totalResourceGain > 0) {
-                environment.addResource(METABOLIC_PRODUCTS.WASTE, this.position, totalResourceGain * 0.3);
-            }
-
-            // デジタル代謝の処理を追加
-            this.processDigitalMetabolism(environment);
-            
-            // エントロピー処理を追加
-            this.processInformationEntropy(environment);
-        }
-        
-        // デジタル代謝の処理（効率を調整）
-        processDigitalMetabolism(environment) {
-            // システム状態に応じてエネルギー効率を変動
-            const systemLoad = environment.systemState.cpuLoad;
-            const memoryState = environment.systemState.memoryUsage;
-            
-            // システム負荷が高いときは効率が下がる（調整）
-            const efficiency = this.digitalMetabolism.cacheEfficiency * 
-                (1 - systemLoad * 0.25) * // 0.3から0.25に軽減
-                (1 - memoryState * 0.15);  // 0.2から0.15に軽減
-            
-            // エネルギー獲得に影響（調整）
-            this.energy *= (1 + (efficiency - 0.5) * 0.12); // 0.1から0.12に増加
-            
-            // 廃棄物の蓄積と処理を改善
-            this.digitalMetabolism.wasteAccumulation += 0.008; // 0.01から0.008に減少
-            if (this.digitalMetabolism.wasteAccumulation > 1) {
-                this.energy *= 0.96; // ペナルティを軽減（0.95→0.96）
-                this.digitalMetabolism.wasteAccumulation = 0;
-                
-                // 廃棄物処理による副産物の生成
-                if (Math.random() < 0.3) {
-                    environment.addResource(METABOLIC_PRODUCTS.WASTE, this.position, 0.05);
-                }
-            }
-            
-            // データ処理量の更新（調整）
-            this.digitalMetabolism.processedData += efficiency * 0.12; // 0.1から0.12に増加
-        }
-        
-        // エントロピー処理
-        processInformationEntropy(environment) {
-            // システムの乱雑さに基づいてエントロピーを更新
-            const systemChaos = (
-                environment.systemState.cpuLoad + 
-                environment.systemState.memoryUsage
-            ) / 2;
-
-            // エントロピーの変化（調整）
-            this.informationState.entropy = 
-                0.25 * this.informationState.entropy + // 0.3から0.25に減少
-                0.75 * systemChaos; // 0.7から0.75に増加
-
-            // 秩序度の更新
-            this.informationState.orderLevel = 
-                Math.max(0, 1 - this.informationState.entropy);
-
-            // 生存への影響（調整）
-            if (this.informationState.orderLevel < 0.2) {
-                this.energy *= 0.985; // 低秩序のペナルティを軽減（0.98→0.985）
-            }
-            
-            // 高い秩序度はボーナスを与える（調整）
-            if (this.informationState.orderLevel > 0.8) {
-                this.energy = Math.min(1.0, this.energy * 1.015); // ボーナスを増加（1.01→1.015）
-            }
-            
-            // 栄養素バランスの影響を追加
-            this.updateNutrientBalance();
-        }
-        
-        // 栄養素バランスの更新メソッドを追加
-        updateNutrientBalance() {
-            const balance = this.metabolicState.nutrientBalance;
-            
-            // 栄養素バランスの自然な変動
-            balance.glucose -= 0.01;
-            balance.aminoAcids -= 0.005;
-            balance.oxygen -= 0.008;
-            
-            // 下限を設定
-            balance.glucose = Math.max(0, balance.glucose);
-            balance.aminoAcids = Math.max(0, balance.aminoAcids);
-            balance.oxygen = Math.max(0, balance.oxygen);
-            
-            // 栄養素バランスに基づくエネルギー効率の調整
-            const totalBalance = balance.glucose + balance.aminoAcids + balance.oxygen;
-            if (totalBalance < 0.5) {
-                // 栄養素不足によるペナルティ
-                this.energy *= 0.995;
-            } else if (totalBalance > 0.8) {
-                // 栄養素バランスが良好な場合のボーナス
-                this.energy = Math.min(1.0, this.energy * 1.005);
-            }
-        }
-        
-        updateBehavior(lifeforms, environment) {
-            // 引数がない場合の対応
-            lifeforms = lifeforms || [];
-            
-            // 現在の状態評価
-            const currentState = {
-                energy: this.energy,
-                threats: this.detectThreats(lifeforms),
-                resources: this.detectResources(environment),
-                companions: this.findCompatibleCompanions(lifeforms)
-            };
-            
-            // 行動の結果を記録
-            if (this.lastState) {
-                const outcome = this.evaluateOutcome(this.lastState, currentState);
-                this.updateBehaviorWeights(outcome);
-            }
-            
-            this.lastState = currentState;
-            
-            // 適応的な群れ行動の重み付けを更新 (毎フレーム更新)
-            this.dna.flockingBehavior = {
-                separation: this.calculateAdaptiveSeparation(),
-                alignment: this.calculateAdaptiveAlignment(),
-                cohesion: this.calculateAdaptiveCohesion()
-            };
-
-            // 群れ行動の重みが小さすぎる場合、最小値を保証
-            const minWeight = 0.15;
-            if (this.dna.flockingBehavior.separation < minWeight) this.dna.flockingBehavior.separation = minWeight;
-            if (this.dna.flockingBehavior.alignment < minWeight) this.dna.flockingBehavior.alignment = minWeight;
-            if (this.dna.flockingBehavior.cohesion < minWeight) this.dna.flockingBehavior.cohesion = minWeight;
-            
-            // ログで重みを出力（デバッグ用、必要に応じてコメントアウト）
-            /*
-            if (Math.random() < 0.01) {
-                console.log(`Flocking: sep=${this.dna.flockingBehavior.separation.toFixed(2)}, 
-                             align=${this.dna.flockingBehavior.alignment.toFixed(2)}, 
-                             coh=${this.dna.flockingBehavior.cohesion.toFixed(2)}`);
-            }
-            */
-        }
-        
-        evaluateOutcome(previousState, currentState) {
-            return {
-                energyChange: currentState.energy - previousState.energy,
-                threatLevel: currentState.threats.length,
-                resourceAccess: this.evaluateResourceAccess(),
-                socialBenefit: this.evaluateSocialInteractions()
-            };
-        }
-        
-        updateBehaviorWeights(outcome) {
-            // 結果に基づいて行動パターンを調整
-            if (outcome.energyChange > 0) {
-                // 成功した行動パターンを強化
-                this.reinforceBehavior();
-            } else {
-                // 失敗した行動パターンを弱化
-                this.weakenBehavior();
-            }
-        }
-        
-        getDistanceTo(other) {
-            const dx = other.position.x - this.position.x;
-            const dy = other.position.y - this.position.y;
-            const dz = other.position.z - this.position.z;
-            return Math.sqrt(dx * dx + dy * dy + dz * dz);
-        }
-        
-        // 遺伝子組み換えを行うメソッド
-        crossover(partner) {
-            const childDNA = {};
-            
-            // 基本的な特性の組み換え
-            for (const key of ['speed', 'efficiency', 'perception', 'foodAttraction', 
-                              'socialBehavior', 'reproductionRate', 'predatory', 'size']) {
-                // 確率的に親のどちらかの特性を継承
-                childDNA[key] = Math.random() < 0.5 ? this.dna[key] : partner.dna[key];
-                
-                // 低確率で両親の特性を混合
-                if (Math.random() < 0.3 && typeof this.dna[key] === 'number' && typeof partner.dna[key] === 'number') {
-                    childDNA[key] = (this.dna[key] + partner.dna[key]) / 2 + (Math.random() - 0.5) * 0.1;
-                }
-            }
-            
-            // 光合成システムの組み換え
-            childDNA.photosynthesis = {
-                efficiency: this.dna.photosynthesis.efficiency * 0.7 + 
-                           partner.dna.photosynthesis.efficiency * 0.3,
-                depth: {
-                    optimal: (this.dna.photosynthesis?.depth?.optimal || 0) * 0.5 + 
-                             (partner.dna.photosynthesis?.depth?.optimal || 0) * 0.5,
-                    range: (this.dna.photosynthesis?.depth?.range || 0.2) * 0.5 + 
-                           (partner.dna.photosynthesis?.depth?.range || 0.2) * 0.5
-                },
-                wavelengths: this.dna.photosynthesis.wavelengths.map((wave, i) => ({
-                    min: wave.min,
-                    max: wave.max,
-                    efficiency: (wave.efficiency + partner.dna.photosynthesis.wavelengths[i].efficiency) / 2
-                })),
-                adaptations: {
-                    nightMode: (this.dna.photosynthesis?.adaptations?.nightMode || 0.1) * 0.5 + 
-                               (partner.dna.photosynthesis?.adaptations?.nightMode || 0.1) * 0.5,
-                    stressResponse: (this.dna.photosynthesis?.adaptations?.stressResponse || 0.2) * 0.5 + 
-                                    (partner.dna.photosynthesis?.adaptations?.stressResponse || 0.2) * 0.5
-                }
-            };
-            
-            // 毒素システムの組み換え
-            if (this.dna.toxins || partner.dna.toxins) {
-                childDNA.toxins = { types: {}, resistance: {} };
-                
-                // 毒素タイプの組み換え
-                ['neural', 'cellular', 'digestive', 'genetic'].forEach(type => {
-                    if (this.dna.toxins?.types?.[type] || partner.dna.toxins?.types?.[type]) {
-                        childDNA.toxins.types[type] = {};
-                        
-                        // 強度の組み換え
-                        const thisStrength = this.dna.toxins?.types?.[type]?.strength || 0.1;
-                        const partnerStrength = partner.dna.toxins?.types?.[type]?.strength || 0.1;
-                        childDNA.toxins.types[type].strength = Math.random() < 0.7 ? 
-                            (thisStrength * 0.6 + partnerStrength * 0.4) : 
-                            (thisStrength * 0.4 + partnerStrength * 0.6);
-                        
-                        // 効果範囲の組み換え
-                        const thisRange = this.dna.toxins?.types?.[type]?.effectRange || 1.0;
-                        const partnerRange = partner.dna.toxins?.types?.[type]?.effectRange || 1.0;
-                        childDNA.toxins.types[type].effectRange = (thisRange + partnerRange) / 2;
-                        
-                        // その他のパラメータの組み換え
-                        if (type === 'genetic') {
-                            const thisCost = this.dna.toxins?.types?.genetic?.developmentCost || 0.5;
-                            const partnerCost = partner.dna.toxins?.types?.genetic?.developmentCost || 0.5;
-                            childDNA.toxins.types.genetic.developmentCost = (thisCost + partnerCost) / 2;
-                            
-                            const thisPotential = this.dna.toxins?.types?.genetic?.mutagenicPotential || 0.3;
-                            const partnerPotential = partner.dna.toxins?.types?.genetic?.mutagenicPotential || 0.3;
-                            childDNA.toxins.types.genetic.mutagenicPotential = (thisPotential + partnerPotential) / 2;
-                        }
-                    }
-                });
-                
-                // 抵抗性の組み換え
-                ['neural', 'cellular', 'digestive', 'genetic'].forEach(type => {
-                    const thisResistance = this.dna.toxins?.resistance?.[type] || 0.1;
-                    const partnerResistance = partner.dna.toxins?.resistance?.[type] || 0.1;
-                    childDNA.toxins.resistance[type] = (thisResistance + partnerResistance) / 2;
-                });
-            }
-            
-            return childDNA;
-        }
-
-        calculateFitness() {
-            // 基本的な生存能力
-            let fitness = this.energy * 0.3;
-            
-            // 環境適応度
-            const environmentalFitness = this.calculateEnvironmentalFitness();
-            fitness += environmentalFitness * 0.2;
-            
-            // 社会的適応度
-            const socialFitness = this.calculateSocialFitness();
-            fitness += socialFitness * 0.15;
-            
-            // 代謝効率
-            const metabolicFitness = this.calculateMetabolicFitness();
-            fitness += metabolicFitness * 0.2;
-            
-            // 生殖成功度
-            const reproductiveFitness = this.calculateReproductiveFitness();
-            fitness += reproductiveFitness * 0.15;
-            
-            return fitness;
-        }
-
-        calculateAdaptiveSeparation() {
-            // エネルギーと環境状況に基づいて分離の重みを適応的に計算
-            let baseSeparation = this.dna.separationWeight || 0.3;
-            
-            // エネルギーが少ないほど分離を強くする（競争を避ける）
-            const energyFactor = Math.max(0.5, 1.5 - this.energy);
-            
-            // 捕食者なら分離を弱める（集団で狩りをする）
-            const predatorFactor = this.isPredator ? 0.8 : 1.2;
-            
-            return baseSeparation * energyFactor * predatorFactor;
-        }
-        
-        calculateAdaptiveAlignment() {
-            // 状況に応じて整列の重みを適応的に計算
-            let baseAlignment = this.dna.alignmentWeight || 0.2;
-            
-            // エネルギーが多いほど整列を強くする（群れに従う余裕がある）
-            const energyFactor = 0.5 + this.energy * 0.7;
-            
-            // 捕食者なら整列を強める（集団での狩りを促進）
-            const predatorFactor = this.isPredator ? 1.3 : 0.9;
-            
-            return baseAlignment * energyFactor * predatorFactor;
-        }
-        
-        calculateAdaptiveCohesion() {
-            // 状況に応じて結合の重みを適応的に計算
-            let baseCohesion = this.dna.cohesionWeight || 0.2;
-            
-            // エネルギーが少ないほど結合を弱める（個体で行動する）
-            const energyFactor = this.energy < 0.3 ? 0.6 : 1.0;
-            
-            // 捕食者なら結合を強める（集団での狩りを促進）
-            const predatorFactor = this.isPredator ? 1.2 : 0.9;
-            
-            return baseCohesion * energyFactor * predatorFactor;
-        }
-
-        // 周囲の脅威（捕食者など）を検出
-        detectThreats(lifeforms) {
-            const threats = [];
-            // 知覚範囲を計算
-            const perceptionRadius = 15 * this.dna.perception;
-            
-            for (const other of lifeforms) {
-                if (other === this) continue;
-                
-                const dx = other.position.x - this.position.x;
-                const dy = other.position.y - this.position.y;
-                const dz = other.position.z - this.position.z;
+                const dx = toxic.position.x - this.position.x;
+                const dy = toxic.position.y - this.position.y;
+                const dz = toxic.position.z - this.position.z;
                 const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
-                
-                // 知覚範囲内で捕食者であれば脅威とみなす
-                if (distance < perceptionRadius && other.isPredator && !this.isPredator) {
-                    threats.push({
-                        lifeform: other,
-                        distance: distance
-                    });
-                }
-            }
-            
-            return threats;
-        }
-        
-        // 周囲の資源を検出
-        detectResources(environment) {
-            // 環境からリソースを検出する処理
-            const resources = [];
-            
-            // 知覚範囲を計算
-            const perceptionRadius = 15 * this.dna.perception;
-            
-            // 環境内のリソースを検索
-            if (environment && environment.resources) {
-                for (const [position, resourceMap] of environment.resources) {
-                    const [x, y] = position.split(',').map(Number);
-                    const dx = x - this.position.x;
-                    const dy = y - this.position.y;
-                    const distance = Math.sqrt(dx * dx + dy * dy);
-                    
-                    if (distance < perceptionRadius) {
-                        for (const [type, amount] of resourceMap) {
-                            resources.push({
-                                type: type,
-                                position: { x, y, z: 0 },
-                                amount: amount,
-                                distance: distance
-                            });
-                        }
-                    }
-                }
-            }
-            
-            // 発見したリソースを記録
-            if (resources.length > 0) {
-                this.lastFoundResource = {
-                    type: resources[0].type,
-                    x: resources[0].position.x,
-                    y: resources[0].position.y,
-                    z: resources[0].position.z,
-                    amount: resources[0].amount,
-                    time: Date.now()
-                };
-            }
-            
-            return resources;
-        }
-        
-        // 互換性のある仲間を探す
-        findCompatibleCompanions(lifeforms) {
-            const companions = [];
-            // 知覚範囲を計算
-            const perceptionRadius = 15 * this.dna.perception;
-            
-            for (const other of lifeforms) {
-                if (other === this) continue;
-                
-                const dx = other.position.x - this.position.x;
-                const dy = other.position.y - this.position.y;
-                const dz = other.position.z - this.position.z;
-                const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
-                
-                // 知覚範囲内で同じタイプ（捕食者か非捕食者か）であれば仲間とみなす
-                if (distance < perceptionRadius && other.isPredator === this.isPredator) {
-                    companions.push({
-                        lifeform: other,
-                        distance: distance
-                    });
-                }
-            }
-            
-            return companions;
-        }
-        
-        // 資源へのアクセス状況を評価
-        evaluateResourceAccess() {
-            // 簡易的な実装
-            return Math.random(); // 0〜1の値を返す
-        }
-        
-        // 社会的相互作用の利益を評価
-        evaluateSocialInteractions() {
-            // 簡易的な実装
-            return Math.random(); // 0〜1の値を返す
-        }
-        
-        // 行動を強化
-        reinforceBehavior() {
-            this.dna.cohesionWeight *= 1.01;
-            this.dna.alignmentWeight *= 1.01;
-        }
-        
-        // 行動を弱化
-        weakenBehavior() {
-            this.dna.cohesionWeight *= 0.99;
-            this.dna.alignmentWeight *= 0.99;
-        }
-        
-        applyDecision(decision) {
-            // 認知的決定に基づいて行動を実行
-            switch (decision.action) {
-                case 'avoid_danger':
-                    // 危険回避の行動
-                    break;
-                case 'seek_food':
-                    // 食料探索の行動
-                    break;
-                case 'socialize':
-                    // 社会的交流の行動
-                    break;
-                // その他の行動...
-            }
-        }
-        
-        updateCognitiveAbilities() {
-            // 経験に基づいて認知能力を発達させる
-            for (const level in this.cognition.development) {
-                if (level !== 'reflexes' && level !== 'instincts') {
-                    // 反射と本能以外は経験により発達
-                    const maxDevelopment = this.dna.cognition.learningRate;
-                    if (this.cognition.development[level] < maxDevelopment) {
-                        this.cognition.development[level] += 0.0001;
-                    }
-                }
-            }
-            
-            // 抽象思考能力の上限は DNA に依存
-            if (this.cognition.development.abstractThinking > this.dna.cognition.abstractionCapacity) {
-                this.cognition.development.abstractThinking = this.dna.cognition.abstractionCapacity;
-            }
-            
-            // メタ認知能力の上限は DNA に依存
-            if (this.cognition.development.metacognition > this.dna.cognition.metacognitionAbility) {
-                this.cognition.development.metacognition = this.dna.cognition.metacognitionAbility;
-            }
-        }
 
-        // 他の生命体との遺伝的距離を計算
-        calculateGeneticDistance(other) {
-            if (!other || !other.dna) return 1.0; // 最大距離
-            
-            // 比較する遺伝子特性のリスト
-            const geneKeys = [
-                'speed', 'efficiency', 'perception', 'foodAttraction', 
-                'socialBehavior', 'reproductionRate', 'predatory', 'size',
-                'metaprogrammingAbility', 'learningRate', 'creativity', 'adaptability'
-            ];
-            
-            let totalDifference = 0;
-            let comparedGenes = 0;
-            
-            // 基本的な数値特性の比較
-            for (const key of geneKeys) {
-                if (typeof this.dna[key] === 'number' && typeof other.dna[key] === 'number') {
-                    const diff = Math.abs(this.dna[key] - other.dna[key]);
-                    totalDifference += diff;
-                    comparedGenes++;
+                // 接触判定（サイズを考慮）
+                const contactThreshold = (this.size + 1) * 0.5;
+                if (distance < contactThreshold) {
+                    // 毒性に応じたダメージを計算
+                    const toxicDamage = toxic.toxicity * 0.05 * (1 - this.toxicDamageResistance);
+                    totalDamage += toxicDamage;
+                }
+
+                // 最も近い毒素を記録（逃避行動用）
+                if (distance < nearestDistance) {
+                    nearestDistance = distance;
+                    nearestToxic = toxic;
                 }
             }
-            
-            // 光合成能力の比較（もし存在すれば）
-            if (this.dna.photosynthesis && other.dna.photosynthesis) {
-                if (typeof this.dna.photosynthesis.efficiency === 'number' && 
-                    typeof other.dna.photosynthesis.efficiency === 'number') {
-                    const diff = Math.abs(this.dna.photosynthesis.efficiency - other.dna.photosynthesis.efficiency);
-                    totalDifference += diff;
-                    comparedGenes++;
-                }
-            }
-            
-            // 捕食者/被食者の互換性
-            if (this.isPredator !== other.isPredator) {
-                totalDifference += 1.0; // 捕食者と非捕食者は大きな遺伝的距離
-                comparedGenes++;
-            }
-            
-            // 平均差異を計算（0〜1の範囲）
-            const averageDifference = comparedGenes > 0 ? totalDifference / comparedGenes : 1.0;
-            
-            // 同種族かどうかの判定に使用できる遺伝的距離を返す
-            return Math.min(1.0, averageDifference);
+
+            return { totalDamage, nearestToxic, nearestDistance };
         }
     }
     
+    // 食物クラスを植物クラスに変更
+    class Plant {
+        constructor(x, y, z, energy) {
+            this.position = {
+                x: x !== undefined ? x : Math.random() * width,
+                y: y !== undefined ? y : height - 2 - Math.random() * 3,
+                z: 0
+            };
+            this.energy = energy !== undefined ? energy : 0.3;
+            this.age = 0;
+            this.maxAge = 2000 + Math.floor(Math.random() * 1000);
+            this.size = 0.05;
+            this.maxSize = 0.2 + Math.random() * 0.2;
+            this.reproductionThreshold = 0.6;
+            this.lastReproductionTime = 0;
+            this.height = 0;
+            this.maxHeight = 40 + Math.random() * 60;  // 20-50から40-100に増加
+            this.growthHeight = 0;
+            this.maxGrowthHeight = 30 + Math.random() * 45;  // 10-25から30-75に増加
+            
+            // 物理特性を更新
+            this.mass = this.size * 0.8 + 0.2;
+            this.buoyancy = this.size * 0.4 + 0.1;
+            this.dragCoefficient = 0.2;
+            
+            this.velocity = { x: 0, y: 0, z: 0 };
+            this.acceleration = { x: 0, y: 0, z: 0 };
+            
+            // 根付きの強さ（底面との結合力）
+            this.rootStrength = 0.95;
+            
+            // 沈殿状態を追加
+            this.isSinking = y < height - 5;  // 15から5に変更して、より深い位置で沈殿するように
+            
+            // 沈殿中の特性を保存
+            if (this.isSinking) {
+                this.initialEnergy = this.energy;
+                this.initialSize = this.size;
+            }
+
+            this.health = 1.0;  // 体力を追加
+            this.maxHealth = 1.0;
+            this.growthHeight = 0;  // 上方向への成長を追跡
+            this.maxGrowthHeight = 10 + Math.random() * 15;  // 20-50から10-25に減少
+        }
+        
+        // 捕食ダメージを受ける関数を追加
+        takeDamage(amount) {
+            this.health -= amount;
+            this.size = Math.max(0.1, this.size * (this.health / this.maxHealth));
+            return this.health <= 0;
+        }
+        
+        applyPhysics() {
+            // 沈殿中は通常の物理演算を適用
+            if (this.isSinking) {
+                // より強い重力
+                const gravity = 0.015 * this.mass;
+                
+                // 弱い浮力
+                const depth = this.position.y / height;
+                const buoyancyForce = -0.005 * this.buoyancy * (depth + 0.2);
+                
+                // 水の抵抗
+                const dragForce = {
+                    x: -this.velocity.x * this.dragCoefficient,
+                    y: -this.velocity.y * this.dragCoefficient,
+                    z: 0
+                };
+                
+                // 合力を適用
+                this.acceleration.y += gravity + buoyancyForce;
+                this.acceleration.x += dragForce.x;
+                this.acceleration.y += dragForce.y;
+                
+                // 底面に到達したかチェック
+                if (this.position.y >= height - 5) {
+                    this.isSinking = false;
+                    this.position.y = height - 1 - Math.random() * 2; // より底面に近く配置
+                    this.velocity = { x: 0, y: 0, z: 0 }; // 速度をリセット
+                }
+            } else {
+                // 通常の植物の物理演算（既存のコード）
+                const gravity = 0.012 * this.mass;
+                const depth = this.position.y / height;
+                const buoyancyForce = -0.008 * this.buoyancy * (depth + 0.2);
+                
+                const dragForce = {
+                    x: -this.velocity.x * this.dragCoefficient,
+                    y: -this.velocity.y * this.dragCoefficient,
+                    z: 0
+                };
+                
+                // 根付きの効果
+                const distanceFromBottom = Math.max(0, height - this.position.y);
+                if (distanceFromBottom < 5) { // 15から5に変更
+                    const rootingForce = -this.velocity.y * this.rootStrength * (1 - distanceFromBottom / 5);
+                    dragForce.y += rootingForce;
+                }
+                
+                this.acceleration.y += gravity + buoyancyForce;
+                this.acceleration.x += dragForce.x;
+                this.acceleration.y += dragForce.y;
+            }
+        }
+        
+        update(plants, oxygens, co2s) {
+            if (this.isSinking) {
+                // 沈殿中は単純な物理演算のみ
+                this.applyPhysics();
+                
+                // 速度を更新
+                this.velocity.x += this.acceleration.x;
+                this.velocity.y += this.acceleration.y;
+                this.velocity.z += this.acceleration.z;
+                
+                // 位置を更新
+                this.position.x += this.velocity.x;
+                this.position.y += this.velocity.y;
+                this.position.z += this.velocity.z;
+                
+                // 加速度をリセット
+                this.acceleration = { x: 0, y: 0, z: 0 };
+                
+                // 底面到達時に植物として活性化
+                if (this.position.y >= height - 15) {
+                    this.isSinking = false;
+                    this.position.y = height - 5 - Math.random() * 10;
+                    this.velocity = { x: 0, y: 0, z: 0 };
+                    this.energy = this.initialEnergy;
+                    this.size = this.initialSize;
+                    this.age = 0; // 植物としての寿命を開始
+                }
+                
+                return false; // 沈殿中は死亡判定を行わない
+            }
+            
+            this.age++;
+            
+            // 上方向への成長速度を調整
+            if (this.energy > 0.4 && this.growthHeight < this.maxGrowthHeight) {  // エネルギー閾値を0.3から0.4に増加
+                const heightGrowthRate = 0.005;  // 0.02から0.005に大幅減少
+                this.growthHeight += heightGrowthRate;
+                this.energy -= heightGrowthRate * 0.2;  // エネルギー消費を0.1から0.2に増加
+
+                // 上方向に新しい植物を生成する確率を調整
+                if (Math.random() < 0.002 && plants.length < maxLifeforms * 2) {  // 0.005から0.002に減少
+                    const newPlant = new Plant(
+                        this.position.x + (Math.random() - 0.5) * 2,
+                        this.position.y - this.growthHeight,
+                        0,
+                        0.4
+                    );
+                    newPlant.size = this.size * 0.7;  // 0.8から0.7に減少
+                    newPlant.maxSize = this.maxSize * 0.8;  // 0.9から0.8に減少
+                    plants.push(newPlant);
+                }
+            }
+            
+            // 光合成と酸素生成（CO2を考慮）
+            let co2Available = false;
+            let consumedCO2 = 0;
+            
+            // 現在位置のCO2を消費
+            const currentCO2 = getCO2At(this.position.x, this.position.y);
+            
+            if (currentCO2 > 0) {
+                consumedCO2 = Math.min(currentCO2, 0.005);  // 0.01から0.005に減少
+                changeCO2At(this.position.x, this.position.y, -consumedCO2);
+                co2Available = true;
+            }
+            
+            // CO2の有無で光合成効率が変化
+            const photosynthesisRate = co2Available ? 0.002 : 0.0005;  // 0.004/0.001から0.002/0.0005に減少
+            this.energy += photosynthesisRate * (1 + consumedCO2 * 30);  // 係数を50から30に減少
+            
+            // 酸素を生成（CO2消費量に応じて生成量が増加）
+            if (this.energy > 0.4 && Math.random() < 0.2) {  // エネルギー閾値を0.3から0.4に増加、確率を0.3から0.2に減少
+                const oxygenAmount = oxygenProductionRate * this.size * (1 + this.growthHeight / 5) * (1 + consumedCO2 * 50);
+                
+                // 植物の周囲に酸素を放出
+                for (let i = 0; i < 2; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const distance = 2 + Math.random() * 3;
+                    const offsetX = Math.cos(angle) * distance;
+                    const offsetY = Math.sin(angle) * distance;
+                    
+                    changeOxygenAt(
+                        this.position.x + offsetX,
+                        this.position.y - this.growthHeight + offsetY,
+                        oxygenAmount * (0.8 + Math.random() * 0.4)
+                    );
+                }
+            }
+            
+            // 成長処理を遅く
+            if (this.size < this.maxSize && this.energy > 0.4) {  // エネルギー閾値を0.3から0.4に増加
+                const growthRate = 0.00005;  // 0.0001から0.00005に減少
+                this.size += growthRate;
+                this.energy -= growthRate * 0.4;  // エネルギー消費を0.3から0.4に増加
+            }
+            
+            // エネルギー消費を調整（より高い成長を維持できるように）
+            this.energy -= 0.00015 * this.size;  // 0.0001から0.00015に増加
+            
+            // 物理演算を適用
+            this.applyPhysics();
+            
+            // 速度と位置の更新（ただし、根付いた後は横方向の移動のみ）
+            this.velocity.x += this.acceleration.x;
+            this.velocity.y += this.acceleration.y;
+            this.position.x += this.velocity.x;
+            
+            // 加速度をリセット
+            this.acceleration = { x: 0, y: 0, z: 0 };
+            
+            // 体力回復も遅く
+            if (this.health < this.maxHealth) {
+                this.health = Math.min(this.maxHealth, this.health + 0.0002);  // 0.0005から0.0002に減少
+                this.size = Math.max(0.1, this.size * (this.health / this.maxHealth));
+            }
+            
+            // 周囲の植物の密度をチェック
+            let nearbyPlants = 0;
+            const densityCheckRadius = 4; // 5から4に減少（より狭い範囲でチェック）
+            let totalSize = 0; // 周囲の植物の合計サイズを追跡
+            
+            for (const other of plants) {
+                if (other === this) continue;
+                
+                const dx = this.position.x - other.position.x;
+                const dy = this.position.y - other.position.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance < densityCheckRadius) {
+                    nearbyPlants++;
+                    totalSize += other.size; // 周囲の植物のサイズを合計
+                }
+            }
+
+            // 密度が高すぎる場合、植物は枯れて死骸になる
+            // 条件を厳しく：植物の数だけでなく、サイズも考慮
+            if ((nearbyPlants > 2 && this.size > this.maxSize * 0.6) || // 2以上の近接植物がいる場合
+                (totalSize > this.maxSize * 1.5) || // 周囲の植物の合計サイズが大きすぎる場合
+                (nearbyPlants > 1 && this.energy < 0.3)) { // 低エネルギー状態で密集している場合
+                // 植物の死骸を生成
+                const debris = new PlantDebris(
+                    this.position.x,
+                    this.position.y,
+                    0,
+                    this.size * 0.8
+                );
+                plantDebris.push(debris);
+                return true; // 植物を除去
+            }
+            
+            return this.age >= this.maxAge || this.energy <= 0 || this.health <= 0;
+        }
+        
+        reproduce(plants) {
+            const reproductionCost = 0.4;
+            if (time - this.lastReproductionTime < 100) return;
+            this.energy -= reproductionCost;
+            this.lastReproductionTime = time;
+            
+            // 繁殖方向をランダムに選択（横または上）
+            const isVerticalGrowth = Math.random() < 0.1; // 20%から10%に減少（上方向への成長をさらに抑制）
+            
+            if (isVerticalGrowth && this.position.y > height * 0.7) { // 下層70%以下でのみ上方向に成長可能
+                // 上方向への繁殖距離を短く
+                const newPlant = new Plant(
+                    this.position.x + (Math.random() - 0.5) * 2,
+                    Math.max(this.position.y - 3 - Math.random() * 3, height * 0.7), // 下層70%より上には行かない
+                    0,
+                    0.4
+                );
+                newPlant.maxSize = this.maxSize * (0.95 + Math.random() * 0.2);
+                plants.push(newPlant);
+            } else {
+                // 横方向への繁殖（複数の子孫を生成）
+                const spreadCount = 1 + Math.floor(Math.random() * 2); // 1-2個の子孫
+                for (let i = 0; i < spreadCount; i++) {
+                    const spreadDistance = 5 + this.size * 5;
+                    const offsetX = (Math.random() - 0.5) * spreadDistance;
+                    
+                    const newPlant = new Plant(
+                        this.position.x + offsetX,
+                        Math.min(this.position.y + (Math.random() - 0.5) * 2, height - 1), // 底面より下には行かない
+                        0,
+                        0.4
+                    );
+                    newPlant.maxSize = this.maxSize * (0.95 + Math.random() * 0.2);
+                    plants.push(newPlant);
+                }
+            }
+        }
+    }
+    
+    // 毒性物質クラスを追加
+    class ToxicMatter {
+        constructor(x, y, z, energy) {
+            this.position = { x, y, z };
+            this.velocity = { x: 0, y: 0, z: 0 };
+            this.energy = energy;
+            this.toxicity = 0.8;
+            this.mass = 0.8;
+            this.age = 0;
+            this.maxAge = 2000;
+            this.isSettled = false;
+            this.settlingTime = 0;
+            this.decompositionStage = 0;
+            this.decompositionProgress = 0;
+            this.bacteriaCount = 0;
+            
+            // 色の初期設定
+            this.color = {
+                hue: 30,
+                saturation: 60,
+                lightness: 30,
+                opacity: 70
+            };
+        }
+
+        applyPhysics() {
+            // 常に下向きの力を適用
+            const sinkRate = 0.05;
+            
+            // 定着していない場合は沈む
+            if (!this.isSettled) {
+                this.position.y += sinkRate;
+                
+                // 水平方向の動きを減衰
+                this.velocity.x *= 0.95;
+                
+                // 水平方向の位置更新
+                this.position.x += this.velocity.x;
+                
+                // 境界チェック
+                if (this.position.x < 0) {
+                    this.position.x = 0;
+                    this.velocity.x = 0;
+                } else if (this.position.x >= width) {
+                    this.position.x = width - 1;
+                    this.velocity.x = 0;
+                }
+                
+                // 底面との衝突判定
+                if (this.position.y >= height - 1) {
+                    this.position.y = height - 1;
+                    this.settlingTime++;
+                    
+                    if (this.settlingTime > 10) {
+                        this.isSettled = true;
+                    }
+                }
+            }
+        }
+
+        update(plants, toxicMatters) {
+            this.age++;
+            
+            // 物理演算の適用
+            this.applyPhysics();
+            
+            // バクテリアによる分解処理
+            if (this.bacteriaCount > 0) {
+                if (this.decompositionStage === 0) {
+                    this.decompositionStage = 1;
+                }
+                
+                if (this.decompositionStage === 1) {
+                    // 分解の進行
+                    const decompositionRate = 0.005 * this.bacteriaCount;
+                    this.decompositionProgress += decompositionRate;
+                    this.toxicity = Math.max(0, this.toxicity - decompositionRate * 3);
+                    
+                    // 色の変更（より暗く、より不透明に）
+                    this.color = {
+                        hue: 30,
+                        saturation: Math.max(20, 60 - this.decompositionProgress * 40),
+                        lightness: Math.max(10, 30 - this.decompositionProgress * 20),
+                        opacity: Math.min(100, 70 + this.decompositionProgress * 30)
+                    };
+                    
+                    // 分解が進むほど沈む速度を上げる
+                    const additionalSinkRate = 0.02 * this.decompositionProgress;
+                    this.position.y = Math.min(height - 1, this.position.y + additionalSinkRate);
+                    
+                    // 分解完了チェック
+                    if (this.decompositionProgress >= 1) {
+                        this.decompositionStage = 2;
+                    }
+                }
+            }
+            
+            // 完全分解後の処理
+            if (this.decompositionStage === 2) {
+                // 常に底に向かって沈む
+                const finalSinkRate = 0.03;
+                this.position.y = Math.min(height - 1, this.position.y + finalSinkRate);
+                
+                // 底部での植物生成
+                if (this.position.y >= height - 1 && Math.random() < 0.01) {
+                    const newPlant = new Plant(
+                        this.position.x + (Math.random() - 0.5) * 2,
+                        height - 1,
+                        0,
+                        this.energy * 0.4
+                    );
+                    newPlant.size = 0.05 + Math.random() * 0.1;
+                    newPlant.maxSize = 0.2 + Math.random() * 0.3;
+                    plants.push(newPlant);
+                    return true;
+                }
+            }
+            
+            // バクテリアカウントをリセット
+            this.bacteriaCount = 0;
+            
+            // 寿命チェック
+            return this.age >= this.maxAge;
+        }
+        
+        // 他のToxicMatterクラスのメソッドは必要に応じて追加
+    }
+    
+    // 浄化バクテリアクラスを追加
+    class PurifierBacteria {
+        constructor(x, y, z) {
+            this.position = {
+                x: x !== undefined ? x : Math.random() * width,
+                y: y !== undefined ? y : height - 2 - Math.random() * 3,
+                z: z || 0
+            };
+            this.energy = 0.5 + Math.random() * 0.3;
+            this.age = 0;
+            this.maxAge = 300 + Math.floor(Math.random() * 200); // 寿命を300-500に短縮
+            this.purificationEfficiency = 0.7 + Math.random() * 0.3;
+            this.size = 0.1 + Math.random() * 0.1;
+            this.velocity = { x: 0, y: 0, z: 0 };
+            this.searchRadius = 20;
+            this.currentTarget = null;
+            this.oxygenEfficiency = 0.4 + Math.random() * 0.4;
+            this.oxygenReserve = 0.5;
+            this.maxOxygenReserve = 1.0;
+            this.oxygenConsumptionRate = 0.008; // 酸素消費率を増加
+            this.speed = 0.3;
+        }
+
+        // 酸素を探して吸収する関数
+        findAndConsumeOxygen(oxygens) {
+            if (!oxygens || !oxygens.getOxygenAt || !oxygens.changeOxygenAt) return false;
+            
+            // 現在位置の酸素を消費
+            const currentOxygen = oxygens.getOxygenAt(this.position.x, this.position.y);
+            
+            if (currentOxygen > 0) {
+                const consumedAmount = Math.min(currentOxygen, 0.01);
+                oxygens.changeOxygenAt(this.position.x, this.position.y, -consumedAmount);
+                this.oxygenReserve = Math.min(this.maxOxygenReserve, this.oxygenReserve + consumedAmount * 0.8);
+                return consumedAmount > 0;
+            }
+            
+            return false;
+        }
+
+        update(toxicMatters, plants, oxygens) {
+            if (!toxicMatters) toxicMatters = [];
+            if (!plants) plants = [];
+            if (!oxygens) {
+                oxygens = {
+                    getOxygenAt: function(x, y) { return 0.2; },
+                    changeOxygenAt: function(x, y, amount) {}
+                };
+            }
+
+            this.age++;
+
+            // 基礎代謝によるエネルギー消費
+            this.energy -= 0.001 * (1 + this.size); // サイズに応じたエネルギー消費
+
+            // 移動によるエネルギー消費
+            const movementCost = Math.sqrt(
+                this.velocity.x * this.velocity.x +
+                this.velocity.y * this.velocity.y
+            ) * 0.002;
+            this.energy -= movementCost;
+
+            // 酸素消費（基本代謝）
+            const baseOxygenConsumption = this.oxygenConsumptionRate * (1 - this.oxygenEfficiency * 0.5);
+            this.oxygenReserve = Math.max(0, this.oxygenReserve - baseOxygenConsumption);
+            
+            // 酸素を探して吸収
+            if (oxygens && typeof oxygens.getOxygenAt === 'function') {
+                this.findAndConsumeOxygen(oxygens);
+            }
+            
+            // 酸素不足時は活動を制限
+            const oxygenFactor = Math.min(1, this.oxygenReserve / 0.2);
+            
+            // 酸素不足によるダメージ
+            if (this.oxygenReserve < 0.1) {
+                this.energy -= 0.002 * (1 - this.oxygenReserve * 10);
+            }
+
+            // 死亡条件をチェック
+            if (this.energy <= 0 || // エネルギー切れ
+                this.age >= this.maxAge || // 寿命
+                this.oxygenReserve <= 0) { // 酸素不足による死亡
+                return true;
+            }
+            
+            // 現在の対象がなければ新しい毒素を探す
+            let foundToxic = false;
+            
+            // 現在の対象がなければ新しい毒素を探す
+            if (!this.currentTarget) {
+                let closestDist = this.searchRadius * oxygenFactor;
+                let closestToxic = null;
+
+                for (const toxic of toxicMatters) {
+                    if (toxic && toxic.isSettled && toxic.decompositionStage !== 2) {
+                        const dx = this.position.x - toxic.position.x;
+                        const dy = this.position.y - toxic.position.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+
+                        if (distance < closestDist) {
+                            closestDist = distance;
+                            closestToxic = toxic;
+                        }
+                    }
+                }
+
+                if (closestToxic) {
+                    this.currentTarget = closestToxic;
+                }
+            }
+
+            // 対象が見つかった場合の処理
+            if (this.currentTarget) {
+                const dx = this.currentTarget.position.x - this.position.x;
+                const dy = this.currentTarget.position.y - this.position.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (distance < 3) {
+                    // 分解作業中の処理は変更なし
+                    // ... existing code ...
+                } else {
+                    // 対象に向かって移動（速度を増加）
+                    this.velocity.x = (dx / distance) * this.speed * oxygenFactor;
+                    this.velocity.y = (dy / distance) * this.speed * oxygenFactor;
+                }
+            } else {
+                // ランダムな移動（速度を増加）
+                if (Math.random() < 0.05 * oxygenFactor) {
+                    this.velocity.x = (Math.random() - 0.5) * this.speed * oxygenFactor;
+                    this.velocity.y = (Math.random() - 0.5) * this.speed * oxygenFactor;
+                }
+            }
+
+            // 位置の更新と境界チェックの改善
+            this.position.x += this.velocity.x;
+            this.position.y += this.velocity.y;
+
+            // 改善された境界チェック
+            const surfaceMargin = 2;
+            const bottomMargin = 3;
+            
+            // 水平方向の境界
+            if (this.position.x < 0) {
+                this.position.x = 0;
+                this.velocity.x *= -0.5;
+            } else if (this.position.x >= width) {
+                this.position.x = width - 1;
+                this.velocity.x *= -0.5;
+            }
+            
+            // 垂直方向の境界（水面と底面での特殊な挙動）
+            if (this.position.y < surfaceMargin) {
+                // 水面付近での挙動
+                const surfaceOxygen = oxygens.getOxygenAt(this.position.x, 0);
+                if (surfaceOxygen > 0.5) {
+                    // 酸素が豊富な場合は水面付近に留まりやすく
+                    this.position.y = Math.max(1, this.position.y);
+                    this.velocity.y *= 0.5;
+                } else {
+                    // 酸素が少ない場合は下に移動
+                    this.velocity.y += 0.01;
+                }
+            } else if (this.position.y >= height - bottomMargin) {
+                // 底面付近での挙動
+                this.position.y = Math.min(height - 1, this.position.y);
+                this.velocity.y *= -0.3;
+            }
+
+            // エネルギー消費と繁殖判定は変更なし
+            // ... existing code ...
+        }
+
+        reproduce() {
+            if (bacteria.length >= bacteriaMaxCount) return false;
+
+            // エネルギーと酸素を消費して子孫を生成
+            const offspringCount = 1 + Math.floor(Math.random() * 2);
+            const energyCost = this.energy * 0.4;
+            const oxygenCost = this.oxygenReserve * 0.3;
+            this.energy -= energyCost;
+            this.oxygenReserve -= oxygenCost;
+
+            for (let i = 0; i < offspringCount; i++) {
+                const spreadDistance = 3 + Math.random() * 2;
+                const angle = Math.random() * Math.PI * 2;
+                
+                const child = new PurifierBacteria(
+                    this.position.x + Math.cos(angle) * spreadDistance,
+                    this.position.y + Math.sin(angle) * spreadDistance,
+                    0
+                );
+                
+                // 特性の継承と突然変異
+                child.purificationEfficiency = Math.max(0.1, Math.min(1.0,
+                    this.purificationEfficiency + (Math.random() - 0.5) * 0.2
+                ));
+                child.oxygenEfficiency = Math.max(0.1, Math.min(1.0,
+                    this.oxygenEfficiency + (Math.random() - 0.5) * 0.2
+                ));
+                
+                // エネルギーと酸素の分配
+                child.energy = energyCost / offspringCount * 0.8;
+                child.oxygenReserve = oxygenCost / offspringCount * 0.8;
+                
+                bacteria.push(child);
+            }
+            
+            return false;
+        }
+    }
+    
+    // 植物の死骸クラスを追加
+    class PlantDebris {
+        constructor(x, y, z, size) {
+            this.position = { x, y, z };
+            this.velocity = { x: 0, y: 0.1, z: 0 };
+            this.acceleration = { x: 0, y: 0, z: 0 };
+            this.size = size;
+            this.mass = size * 0.8;
+            this.buoyancy = size * 0.3;
+            this.dragCoefficient = 0.2;
+            this.age = 0;
+            this.maxAge = 1000 + Math.floor(Math.random() * 500);
+            this.decompositionProgress = 0;
+            this.isSettled = false;
+            this.anaerobicBacteriaCount = 0;
+            this.isCompost = false;
+            this.compostNutrientValue = 0;
+            this.color = {
+                hue: 30, // 茶色
+                saturation: 60,
+                lightness: 30,
+                opacity: 70
+            };
+            this.stackHeight = 0; // 堆積の高さを追跡
+            this.maxLocalDensity = 3; // 最大局所密度を定義
+            this.upwardMoveSpeed = 0.5; // 上方向への移動速度
+            this.decompositionRate = 0.003; // 基本分解速度を追加
+            this.bacteriaEfficiency = 1.2; // バクテリアの効率係数を追加
+        }
+
+        // 周囲の堆肥の濃度をチェック
+        checkCompostDensity(plantDebris) {
+            let localCompostCount = 0;
+            const checkRadius = 3;
+            
+            for (const debris of plantDebris) {
+                if (debris === this || !debris.isCompost) continue;
+                
+                const dx = this.position.x - debris.position.x;
+                const dy = this.position.y - debris.position.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance < checkRadius) {
+                    localCompostCount++;
+                }
+            }
+            
+            return localCompostCount;
+        }
+
+        applyPhysics() {
+            if (this.isSettled) return;
+
+            const gravity = 0.01 * this.mass;
+            const depth = this.position.y / height;
+            const buoyancyForce = -0.005 * this.buoyancy * (depth + 0.2);
+            
+            const dragForce = {
+                x: -this.velocity.x * this.dragCoefficient,
+                y: -this.velocity.y * this.dragCoefficient,
+                z: 0
+            };
+            
+            this.acceleration.y = gravity + buoyancyForce + dragForce.y;
+            this.acceleration.x = dragForce.x;
+            
+            // 底面または堆積した堆肥との衝突判定
+            if (this.position.y >= height - 2) {
+                this.position.y = height - 1;
+                this.velocity = { x: 0, y: 0, z: 0 };
+                this.acceleration = { x: 0, y: 0, z: 0 };
+                this.isSettled = true;
+            }
+        }
+
+        update(bacteria, anaerobicBacteria, plantDebris) {
+            this.age++;
+            
+            if (!this.isSettled) {
+                this.applyPhysics();
+                
+                this.velocity.x += this.acceleration.x;
+                this.velocity.y += this.acceleration.y;
+                
+                this.position.x += this.velocity.x;
+                this.position.y += this.velocity.y;
+                
+                return false;
+            }
+
+            // 好気性バクテリアと嫌気性バクテリアの両方による分解
+            let totalDecomposition = 0;
+
+            // 好気性バクテリアによる分解
+            for (const bacterium of bacteria) {
+                const dx = this.position.x - bacterium.position.x;
+                const dy = this.position.y - bacterium.position.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance < 3) {
+                    totalDecomposition += this.decompositionRate * this.bacteriaEfficiency;
+                }
+            }
+
+            // 嫌気性バクテリアによる分解
+            if (this.anaerobicBacteriaCount > 0) {
+                totalDecomposition += this.decompositionRate * this.anaerobicBacteriaCount;
+            }
+
+            // 分解の進行
+            if (totalDecomposition > 0) {
+                this.decompositionProgress += totalDecomposition;
+                
+                // 色の更新（より暗い茶色へ）
+                this.color.hue = 30;
+                this.color.saturation = 40 + this.decompositionProgress * 20;
+                this.color.lightness = Math.max(20, 30 - this.decompositionProgress * 10);
+                this.color.opacity = Math.max(40, 70 - this.decompositionProgress * 20);
+                
+                // 完全に分解されたら堆肥に変換
+                if (this.decompositionProgress >= 1 && !this.isCompost) {
+                    this.isCompost = true;
+                    this.compostNutrientValue = this.size * 0.7;
+                    this.color = {
+                        hue: 25,
+                        saturation: 70,
+                        lightness: 15,
+                        opacity: 90
+                    };
+
+                    // 堆肥化完了時に一定確率で植物を生成
+                    if (Math.random() < 0.3 && this.position.y > height * 0.7) {
+                        const newPlant = new Plant(
+                            this.position.x + (Math.random() - 0.5) * 2,
+                            Math.min(this.position.y, height - 1), // 底面より下には行かない
+                            0,
+                            0.3
+                        );
+                        newPlant.size = 0.05 + Math.random() * 0.1;
+                        newPlant.maxSize = 0.2 + Math.random() * 0.3;
+                        plants.push(newPlant);
+                        return true;
+                    }
+                }
+            }
+
+            // カウントをリセット
+            this.anaerobicBacteriaCount = 0;
+
+            // 堆積物の密度チェックと位置調整
+            if (this.isCompost) {
+                const localCompostCount = this.checkCompostDensity(plantDebris);
+                if (localCompostCount > this.maxLocalDensity) {
+                    const newY = this.position.y - this.upwardMoveSpeed;
+                    if (newY > 0) {
+                        this.position.y = newY;
+                        this.stackHeight++;
+                    }
+                }
+            }
+
+            return this.age >= this.maxAge;
+        }
+
+        checkLocalDensity(plantDebris) {
+            let localCount = 0;
+            const checkRadius = 3;
+            let lowestY = this.position.y;
+            
+            for (const debris of plantDebris) {
+                if (debris === this) continue;
+                
+                const dx = this.position.x - debris.position.x;
+                const dy = this.position.y - debris.position.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance < checkRadius) {
+                    localCount++;
+                    lowestY = Math.max(lowestY, debris.position.y);
+                }
+            }
+            
+            return { count: localCount, lowestY: lowestY };
+        }
+    }
+    
+    // 生命体と植物の初期化
+    const lifeforms = [];
+    const plants = [];
+    const toxicMatters = [];
+    const bacteria = [];
+    const plantDebris = [];
+    const anaerobicBacteria = [];
+    
+    // 基準となる初期DNAを定義
+    const initialDNA = {
+        speed: 0.45,          // 中央値を使用
+        efficiency: 0.65,     // 中央値を使用
+        perception: 0.6,      // 中央値を使用
+        foodAttraction: 0.75, // 中央値を使用
+        socialBehavior: 0,    // 中立的な値を使用
+        reproductionRate: 0.25, // 中央値を使用
+        predatory: 0.3,       // やや低めの捕食性
+        size: 0.4,           // 中央値を使用
+        
+        // Boidの動きに関する特性
+        separationWeight: 0.85,
+        alignmentWeight: 0.35,
+        cohesionWeight: 0.2,
+        
+        // 繁殖戦略
+        offspringCount: 2,    // 固定値
+        parentalCare: 0.5,    // 中央値を使用
+        
+        // 特殊能力
+        regenerationRate: 0.05, // 中央値を使用
+        toxicity: 0.25,      // 中央値を使用
+        
+        // 酸素関連の特性
+        oxygenEfficiency: 0.65,
+        oxygenTolerance: 0.5
+    };
+    
+    // 初期生命体を同一DNAで生成
+    for (let i = 0; i < initialLifeCount; i++) {
+        const x = Math.random() * width;
+        const y = height * (0.2 + Math.random() * 0.6);
+        lifeforms.push(new Lifeform(x, y, 0, 0.9, {...initialDNA}));  // DNAをコピーして使用
+    }
+    
+    // 植物の初期生成を調整
+    const initialPlantCount = Math.floor(width * 0.3); // 0.5から0.3に減少
+    for (let i = 0; i < initialPlantCount; i++) {
+        // より均一に分布するように配置
+        const x = (i / initialPlantCount) * width + (Math.random() - 0.5) * 10; // 少しランダム性を持たせる
+        const y = height - 1 - Math.random() * 2; // より底面に近く、薄い層に
+        
+        // 初期の植物をより小さく、成長の余地を持たせる
+        const plant = new Plant(x, y, 0, 0.5);
+        plant.size = 0.05 + Math.random() * 0.1; // より小さな初期サイズ
+        plant.maxSize = 0.2 + Math.random() * 0.3; // 最大サイズも抑えめに
+        plants.push(plant);
+    }
     
     // Z-bufferを初期化
     function initZBuffer() {
@@ -2681,305 +1667,172 @@ document.addEventListener('DOMContentLoaded', () => {
         return buffer;
     }
     
-    // 生命体の状態に基づいて色を計算
+    // 生命体の色計算を元に戻す
     function getColor(lifeform) {
-        // 生命体がnullまたはundefinedの場合のデフォルト色（より柔らかい青に）
-        if (!lifeform || !lifeform.dna) {
-            return 'hsl(180, 30%, 75%)';
-        }
-
-        // 死体の場合は分解段階に応じた色を返す
-        if (lifeform.isDead) {
-            // 主要な毒素タイプを判定
-            let dominantToxin = 'neural';
-            let maxStrength = lifeform.postMortemToxins?.neural || 0;
-            
-            if (lifeform.postMortemToxins?.cellular > maxStrength) {
-                dominantToxin = 'cellular';
-                maxStrength = lifeform.postMortemToxins.cellular;
-            }
-            if (lifeform.postMortemToxins?.digestive > maxStrength) {
-                dominantToxin = 'digestive';
-                maxStrength = lifeform.postMortemToxins.digestive;
-            }
-            
-            // 分解の進行度を計算
-            const decompositionProgress = (time - lifeform.deathTime) / lifeform.decompositionTime;
-            
-            // 毒素タイプに応じた色相を設定（より落ち着いた色に）
-            let hue;
-            switch (dominantToxin) {
-                case 'neural':
-                    hue = 280; // より落ち着いた紫色
-                    break;
-                case 'cellular':
-                    hue = 15; // より落ち着いた赤褐色
-                    break;
-                case 'digestive':
-                    hue = 45; // より落ち着いた黄土色
-                    break;
-                default:
-                    hue = 260; // より落ち着いた紫色
-            }
-            
-            // 毒素の強さに応じた彩度（より控えめに）
-            const saturation = Math.min(40, 15 + (maxStrength * 25));
-            
-            // 分解の進行に応じた明度（より落ち着いた明度に）
-            const lightness = Math.max(35, 65 - (decompositionProgress * 25));
-            
-            return `hsl(${hue}, ${Math.floor(saturation)}%, ${Math.floor(lightness)}%)`;
-        }
-
-        // 基本色相の計算（全体的により落ち着いた色調に）
-        let hue = 190; // デフォルトをより落ち着いた青に
-        // 彩度と明度の初期値を設定（より控えめに）
-        let saturation = 35;
-        let lightness = 60;
+        // 基本色相（捕食者か被食者かで異なる）
+        const hue = lifeform.baseHue;
         
-        // 光合成と捕食性による色相の調整
-        const photoWeight = lifeform.dna.photosynthesis.efficiency;
-        const predWeight = lifeform.dna.predatory;
+        // エネルギーレベルに基づく彩度
+        const saturation = 50 + lifeform.energy * 50;  // 元の値に戻す
         
-        // 代謝経路の影響を追加（より控えめに）
-        const metabolicComplexity = (lifeform.dna.metabolicPathways?.requiredResources?.length || 0) / 3;
-        const metabolicHue = metabolicComplexity * 15;
+        // 年齢に基づく明度（若いほど明るい）
+        const ageRatio = Math.min(1, lifeform.age / maxAge);
+        const lightness = 70 - ageRatio * 40;  // 元の値に戻す
         
-        // リソース交換能力の影響を追加（より控えめに）
-        const resourceExchangeEfficiency = 
-            (lifeform.dna.resourceExchange?.giveRate || 0) +
-            (lifeform.dna.resourceExchange?.receiveRate || 0);
-        const exchangeHue = resourceExchangeEfficiency * 10;
+        return `hsl(${hue}, ${saturation}%, ${lightness}%)`;  // 不透明度は使用しない
+    }
+    
+    // 植物の色計算を修正
+    function getPlantColor(plant, healthFactor = 1) {
+        // 基本色相（サイズに応じて緑の色調を変化）
+        const hue = 80 + (plant.size / plant.maxSize) * 20;  // 90-120から80-100に変更
         
-        // 深度設定の影響を追加（より控えめに）
-        const depthEffect = (lifeform.dna.depthPreference || 0) / 10;
-        const depthHue = Math.abs(depthEffect) * 20;
+        // エネルギーと健康状態に基づく彩度
+        const saturation = 20 + (plant.energy * 30 + healthFactor * 20);  // より控えめに
         
-        // 夜行性の影響を追加
-        const nocturnalEffect = lifeform.dna.nocturnality || 0;
+        // サイズとエネルギーに基づく明度
+        const sizeFactor = plant.size / plant.maxSize;
+        const energyFactor = plant.energy * 0.8;
+        const lightness = Math.max(15, (25 + sizeFactor * 20) * healthFactor * energyFactor);
         
-        // 捕食者の色をより落ち着いた赤に
-        if (lifeform.isPredator) {
-            hue = (15 + (predWeight * 15) + metabolicHue + exchangeHue) % 360;
-            saturation = 45 + (predWeight * 15);
-            lightness = 55 + (predWeight * 5) - (nocturnalEffect * 15);
-        } else if (photoWeight > 0.5) {
-            // 光合成能力が高い生命体はより落ち着いた緑系
-            hue = (95 + (photoWeight * 20) + metabolicHue + depthHue) % 360;
-            saturation = 35 + (Math.abs(depthEffect) * 15);
-            lightness = 60 + (photoWeight * 10) - (nocturnalEffect * 10);
-        } else {
-            // その他はより落ち着いた青系
-            hue = (190 + ((1 - predWeight) * 30) + exchangeHue + depthHue) % 360;
-            saturation = 30 + (resourceExchangeEfficiency * 20);
-            lightness = 65 - (nocturnalEffect * 15);
-        }
+        // 不透明度も健康状態とエネルギーに応じて変化
+        const opacity = 30 + (healthFactor * 30 + plant.energy * 20);  // 30-80%の不透明度
         
-        // 毒素による色相の微調整（より控えめに）
-        const toxinStrength = (
-            (lifeform.dna.toxins?.types?.neural?.strength || 0) +
-            (lifeform.dna.toxins?.types?.cellular?.strength || 0) +
-            (lifeform.dna.toxins?.types?.digestive?.strength || 0)
-        ) / 3;
-        hue += toxinStrength * 10;
-
-        // 遺伝子ハッキングの視覚的表現（より控えめに）
-        if (lifeform._geneExpressionModifiers && Object.keys(lifeform._geneExpressionModifiers).length > 0) {
-            hue += 15;
-            saturation += 10;
-        }
-        
-        if (lifeform._immune_response) {
-            hue -= 20;
-            saturation += 5;
-        }
-        
-        if (lifeform._acquiredGenes && lifeform._acquiredGenes.length > 0) {
-            const recentAcquisition = lifeform._acquiredGenes.some(g => time - g.time < 100);
-            if (recentAcquisition) {
-                hue += 30;
-                saturation += 10;
-            }
-        }
-        
-        // 攻撃/防御特化の視覚的表現（より控えめに）
-        if (lifeform.dna._offensiveAdaptations) {
-            hue = (hue + 15) % 360;
-        }
-        
-        if (lifeform.dna._defensiveAdaptations) {
-            hue = (hue + 195) % 360;
-        }
-
-        // 明度の調整（より落ち着いた範囲に）
-        const energyFactor = lifeform.energy * 15;
-        const ageFactor = Math.max(0, 10 - (lifeform.age / maxAge) * 10);
-        lightness = Math.min(80, Math.max(45,
-            lightness + energyFactor + ageFactor
-        ));
-
-        return `hsl(${Math.floor(hue)}, ${Math.floor(saturation)}%, ${Math.floor(lightness)}%)`;
+        return `hsla(${hue}, ${saturation}%, ${lightness}%, ${opacity}%)`;
     }
     
     // フレームを描画
     function render() {
         const zBuffer = initZBuffer();
         
-        // 生命体が0になった場合のリスタート処理
-        if (lifeforms.length === 0) {
-            restartTimer++;
-            if (restartTimer >= RESTART_DELAY) {
-                console.log('生命体が絶滅したため、シミュレーションをリスタートします。');
-                init();
-                restartTimer = 0;
-                return;
+        // バクテリアを更新
+        for (let i = bacteria.length - 1; i >= 0; i--) {
+            if (!bacteria[i]) continue; // undefinedチェックを追加
+            
+            // oxygensパラメータとして酸素マップを渡す
+            if (bacteria[i].update(toxicMatters || [], plants || [], {
+                getOxygenAt: getOxygenAt || function(x, y) { return 0.2; },
+                changeOxygenAt: changeOxygenAt || function(x, y, amount) {}
+            })) {
+                bacteria.splice(i, 1);
             }
-        } else {
-            restartTimer = 0;
+        }
+        
+        // 植物を更新
+        for (let i = plants.length - 1; i >= 0; i--) {
+            if (plants[i].update(plants, null, null)) { // oxygens, co2s引数を削除
+                plants.splice(i, 1);
+            }
         }
         
         // 生命体を更新
         for (let i = lifeforms.length - 1; i >= 0; i--) {
-            lifeforms[i].processMetabolism(environment);
-            // 完全に分解された場合のみ新しい生命体を生成
-            if (lifeforms[i].update(lifeforms, environment)) {
-                const deadPosition = { ...lifeforms[i].position };
-                const deadEnergy = lifeforms[i].energy;
-                
-                if (Math.random() < 0.01) {  // 1%の確率で新しい生命体が発生
-                    const newDna = {
-                        ...lifeforms[i].dna,
-                        // 突然変異を加える
-                        photosynthesis: {
-                            efficiency: Math.random(),
-                            depth: {
-                                optimal: (Math.random() * 10) - 5,
-                                range: 0.2 + Math.random() * 0.3
-                            },
-                            wavelengths: [
-                                { min: 400, max: 500, efficiency: Math.random() },
-                                { min: 500, max: 600, efficiency: Math.random() },
-                                { min: 600, max: 700, efficiency: Math.random() }
-                            ],
-                            adaptations: {
-                                nightMode: Math.random() * 0.3,
-                                stressResponse: Math.random() * 0.5
-                            }
-                        },
-                        toxins: {
-                            types: {
-                                neural: {
-                                    strength: Math.random() * 0.5,
-                                    developmentCost: 0.3,
-                                    effectRange: 2 + Math.random() * 3
-                                },
-                                cellular: {
-                                    strength: Math.random() * 0.5,
-                                    developmentCost: 0.4,
-                                    effectRange: 1 + Math.random() * 2
-                                },
-                                digestive: {
-                                    strength: Math.random() * 0.5,
-                                    developmentCost: 0.2,
-                                    effectRange: 1.5 + Math.random() * 2
-                                }
-                            },
-                            resistance: {
-                                neural: Math.random(),
-                                cellular: Math.random(),
-                                digestive: Math.random()
-                            },
-                            adaptation: {
-                                productionRate: Math.random() * 0.3,
-                                storageCapacity: 0.5 + Math.random(),
-                                releaseControl: Math.random()
-                            }
-                        },
-                        geneNetwork: {
-                            photosynthesis: {
-                                enhancedBy: ['efficiency', 'regenerationRate'],
-                                suppressedBy: ['toxins.adaptation.productionRate'],
-                                influences: ['energy', 'growth']
-                            },
-                            toxins: {
-                                enhancedBy: ['efficiency', 'size'],
-                                suppressedBy: ['photosynthesis.efficiency'],
-                                influences: ['predation', 'defense']
-                            }
-                        },
-                        mobility: Math.random(),
-                        growthRate: 0.1 + Math.random() * 0.4,
-                        size: 0.2 + Math.random() * 0.2,
-                        speed: 0.3 + Math.random() * 0.2,
-                        efficiency: 0.4 + Math.random() * 0.2,
-                        perception: 0.3 + Math.random() * 0.2,
-                        foodAttraction: 0.4 + Math.random() * 0.2,
-                        socialBehavior: Math.random() * 0.4 - 0.2,
-                        reproductionRate: 0.2 + Math.random() * 0.2,
-                        separationWeight: 0.3 + Math.random() * 0.2,
-                        alignmentWeight: 0.3 + Math.random() * 0.2,
-                        cohesionWeight: 0.3 + Math.random() * 0.2,
-                        depthPreference: (Math.random() * 10) - 5,
-                        depthTolerance: 0.2 + Math.random() * 0.2,
-                        regenerationRate: Math.random() * 0.05,
-                        offspringCount: 1,
-                        parentalCare: 0.1 + Math.random() * 0.2,
-                        nocturnality: 0.4 + Math.random() * 0.2,
-                        territoriality: Math.random() * 0.2,
-                        
-                        // DNAに以下のような特性を追加
-                        resourceExchange: {
-                            giveRate: Math.random(),      // リソースを提供する傾向
-                            receiveRate: Math.random(),   // リソースを受け取る傾向
-                            exchangeRange: Math.random(), // 交換可能な範囲
-                            exchangeType: {              // 交換可能なリソースタイプ
-                                energy: Math.random(),
-                                nutrients: Math.random(),
-                                protection: Math.random()
-                            }
-                        },
-                        
-                        metabolicPathways: {
-                            wasteProducts: [],           // 代謝産物（他の生物のリソースになりうる）
-                            requiredResources: [         // 必要な資源の初期設定
-                                METABOLIC_PRODUCTS.GLUCOSE,
-                                METABOLIC_PRODUCTS.OXYGEN
-                            ],
-                            byproducts: []              // 副産物（他の生物に有益または有害）
-                        },
-                        // flockingBehaviorの初期化
-                        flockingBehavior: {
-                            separation: 0.4 + Math.random() * 0.2,
-                            alignment: 0.4 + Math.random() * 0.2,
-                            cohesion: 0.4 + Math.random() * 0.2
-                        },
-                    };
-                    
-                    const offspring = new Lifeform(
-                        deadPosition.x + (Math.random() - 0.5) * 3,
-                        deadPosition.y + (Math.random() - 0.5) * 3,
-                        deadPosition.z + (Math.random() - 0.5) * 2,
-                        deadEnergy * 0.3,
-                        newDna
+            if (!lifeforms[i]) continue; // undefinedチェックを追加
+            
+            lifeforms[i].update(lifeforms || [], plants || [], toxicMatters || []);
+            
+            if (lifeforms[i].isDead) {
+                // 死亡時、その場所に毒性物質を生成
+                const deadLifeform = lifeforms[i];
+                if (deadLifeform && deadLifeform.position) {
+                    const toxicMatter = new ToxicMatter(
+                        deadLifeform.position.x,
+                        deadLifeform.position.y,
+                        0,
+                        deadLifeform.energy * 0.5
                     );
-                    
-                    lifeforms.push(offspring);
+                    if (toxicMatters) toxicMatters.push(toxicMatter);
+
+                    // 死亡した生命体から一定確率でバクテリアを生成
+                    if (Math.random() < 0.25 && bacteria) {
+                        const bacteriaCount = 1 + Math.floor(Math.random() * 2);
+                        for (let j = 0; j < bacteriaCount; j++) {
+                            const bacterium = new PurifierBacteria(
+                                deadLifeform.position.x + (Math.random() - 0.5) * 3,
+                                deadLifeform.position.y + (Math.random() - 0.5) * 3,
+                                0
+                            );
+                            bacterium.energy = 0.6;
+                            bacteria.push(bacterium);
+                        }
+                    }
                 }
-                
                 lifeforms.splice(i, 1);
             }
         }
         
-        // ネットワーク関係のある生命体を特定
-        const networkedLifeforms = new Set();
-        for (const lifeform of lifeforms) {
-            if (lifeform.bonds && lifeform.bonds.size > 0) {
-                networkedLifeforms.add(lifeform);
-                lifeform.bonds.forEach((strength, other) => {
-                    if (strength > 0.3) { // 一定以上の結合強度がある場合のみ
-                        networkedLifeforms.add(other);
+        // 毒性物質を更新
+        for (let i = toxicMatters.length - 1; i >= 0; i--) {
+            if (!toxicMatters[i]) continue; // undefinedチェックを追加
+            
+            // 毒性物質から一定確率で新しいバクテリアを生成
+            if (toxicMatters[i].isSettled && Math.random() < 0.01 && bacteria) {
+                const bacterium = new PurifierBacteria(
+                    toxicMatters[i].position.x + (Math.random() - 0.5) * 2,
+                    toxicMatters[i].position.y + (Math.random() - 0.5) * 2,
+                    0
+                );
+                bacterium.energy = 0.5;
+                bacteria.push(bacterium);
+            }
+
+            if (toxicMatters[i].update(plants || [], toxicMatters || [])) {
+                toxicMatters.splice(i, 1);
+            }
+        }
+        
+        // 嫌気性バクテリアを更新
+        for (let i = anaerobicBacteria.length - 1; i >= 0; i--) {
+            if (anaerobicBacteria[i].update(plantDebris, null)) { // oxygens引数を削除
+                anaerobicBacteria.splice(i, 1);
+            }
+        }
+        
+        // 植物の死骸を更新
+        for (let i = plantDebris.length - 1; i >= 0; i--) {
+            if (plantDebris[i].update(bacteria, anaerobicBacteria, plantDebris)) {
+                plantDebris.splice(i, 1);
+            }
+        }
+        
+        // ガスの拡散処理
+        diffuseGases();
+        
+        // 植物を描画
+        for (const plant of plants) {
+            // 根本の位置を描画
+            const baseX = Math.floor(plant.position.x);
+            const baseY = Math.floor(plant.position.y);
+
+            // 成長した高さに応じて上方向に描画
+            for (let h = 0; h <= plant.growthHeight; h++) {
+                const projectedX = baseX;
+                const projectedY = baseY - h;
+                const z = plant.position.z;
+
+                if (projectedX >= 0 && projectedX < width && 
+                    projectedY >= 0 && projectedY < height) {
+                    const bufferIndex = projectedY * width + projectedX;
+
+                    if (z < zBuffer[bufferIndex].depth) {
+                        // 高さに応じて文字を変える
+                        const isTop = h === Math.floor(plant.growthHeight);
+                        const sizeIndex = Math.floor(plant.size * asciiChars.length);
+                        let displayChar = isTop ? 
+                            asciiChars[Math.min(sizeIndex, asciiChars.length - 1)] :
+                            '│';  // 茎を表現
+
+                        // 体力に応じて色を調整
+                        const healthFactor = plant.health / plant.maxHealth;
+                        const color = getPlantColor(plant, healthFactor);
+
+                        zBuffer[bufferIndex] = {
+                            char: displayChar,
+                            depth: z,
+                            color: color
+                        };
                     }
-                });
+                }
             }
         }
         
@@ -2993,53 +1846,199 @@ document.addEventListener('DOMContentLoaded', () => {
                 const bufferIndex = projectedY * width + projectedX;
                 
                 if (z < zBuffer[bufferIndex].depth) {
-                    // サイズとエネルギーに基づいて文字を選択（安全に）
-                    const size = lifeform.size || 0;
-                    const energy = lifeform.energy || 0;
-                    const sizeIndex = Math.min(Math.floor(size * (asciiChars.length - 1)), asciiChars.length - 1);
-                    const energyIndex = Math.min(Math.floor(energy * (asciiChars.length - 1)), asciiChars.length - 1);
-                    const charIndex = Math.max(0, Math.min(Math.max(sizeIndex, energyIndex), asciiChars.length - 1));
+                    // エネルギーと年齢に基づいて文字を選択
+                    const energyIndex = Math.min(
+                        Math.floor(lifeform.energy * (asciiChars.length - 1)),
+                        asciiChars.length - 1
+                    );
                     
-                    // ネットワーク関係がある場合は特殊文字を使用
-                    let displayChar;
-                    if (networkedLifeforms.has(lifeform)) {
-                        // フレーム数に基づいて通常の文字と特殊文字を交互に表示
-                        if (time % 10 < 5) {
-                            displayChar = asciiChars[charIndex] || '·';
-                        } else {
-                            // ランダムにネットワーク文字を選択
-                            const networkIndex = Math.floor(Math.random() * networkChars.length);
-                            displayChar = networkChars[networkIndex];
-                        }
+                    // 捕食者は大きめの文字、被食者は小さめの文字で表示
+                    let displayChar = asciiChars[energyIndex];
+                    if (lifeform.isPredator) {
+                        // 捕食者は大きめの文字（エネルギーが高いほど大きい）
+                        displayChar = asciiChars[Math.min(energyIndex, asciiChars.length - 2)];
                     } else {
-                        displayChar = asciiChars[charIndex] || '·';
+                        // 被食者は小さめの文字
+                        displayChar = asciiChars[Math.max(energyIndex, 2)];
                     }
-                    
-                    // 色の計算
-                    const color = getColor(lifeform);
                     
                     zBuffer[bufferIndex] = {
                         char: displayChar,
                         depth: z,
-                        color: color
+                        color: getColor(lifeform)
                     };
                 }
             }
         }
         
-        // 環境リソースの情報を取得
-        const resourceBuffer = Array(width * height).fill().map(() => new Map());
+        // 酸素を描画
+        for (let x = 0; x < gridWidth; x++) {
+            for (let y = 0; y < gridHeight; y++) {
+                const oxygenLevel = oxygenMap[x][y];
+                
+                if (oxygenLevel > 0.03) {
+                    // グリッドの中心座標を計算
+                    const centerX = x * gridSize + gridSize / 2;
+                    const centerY = y * gridSize + gridSize / 2;
+                    
+                    // グリッド内のランダムな位置に酸素を表示
+                    const offsetX = (Math.random() - 0.5) * gridSize;
+                    const offsetY = (Math.random() - 0.5) * gridSize;
+                    
+                    const projectedX = Math.floor(centerX + offsetX);
+                    const projectedY = Math.floor(centerY + offsetY);
+                    
+                    if (projectedX >= 0 && projectedX < width && 
+                        projectedY >= 0 && projectedY < height) {
+                        const bufferIndex = projectedY * width + projectedX;
+                        
+                        // 酸素濃度に応じて表示を変える
+                        let displayChar, opacity, lightness, saturation;
+                        
+                        displayChar = oxygenLevel > 0.7 ? '◦' : 
+                                    oxygenLevel > 0.4 ? '·' : 
+                                    '·';
+                        opacity = 20 + oxygenLevel * 20; // 不透明度を20-40%に
+                        lightness = 60 + oxygenLevel * 10; // 明るさを60-70%に
+                        saturation = 60; // 彩度を60%に
+                        
+                        zBuffer[bufferIndex] = {
+                            char: displayChar,
+                            depth: -1, // 酸素は最背面に表示
+                            color: `hsla(190, ${saturation}%, ${lightness}%, ${opacity}%)`
+                        };
+                    }
+                }
+            }
+        }
         
-        // 環境グリッドからリソース情報を収集
-        for (let x = 0; x < width; x++) {
-            for (let y = 0; y < height; y++) {
-                const cell = environment.grid[x][y];
-                if (cell) {
-                    cell.forEach((amount, type) => {
-                        if (amount > 0) {
-                            resourceBuffer[y * width + x].set(type, amount);
+        // CO2を描画
+        for (let x = 0; x < gridWidth; x++) {
+            for (let y = 0; y < gridHeight; y++) {
+                const co2Level = co2Map[x][y];
+                
+                if (co2Level > 0.03) {
+                    // グリッドの中心座標を計算
+                    const centerX = x * gridSize + gridSize / 2;
+                    const centerY = y * gridSize + gridSize / 2;
+                    
+                    // グリッド内のランダムな位置にCO2を表示
+                    const offsetX = (Math.random() - 0.5) * gridSize;
+                    const offsetY = (Math.random() - 0.5) * gridSize;
+                    
+                    const projectedX = Math.floor(centerX + offsetX);
+                    const projectedY = Math.floor(centerY + offsetY);
+                    
+                    if (projectedX >= 0 && projectedX < width && 
+                        projectedY >= 0 && projectedY < height) {
+                        const bufferIndex = projectedY * width + projectedX;
+                        
+                        // CO2濃度に応じて表示を変える
+                        let displayChar, opacity, lightness, saturation;
+                        
+                        displayChar = co2Level > 0.7 ? '∙' : 
+                                    co2Level > 0.4 ? '·' : 
+                                    '·';
+                        opacity = 30 + co2Level * 30; // 不透明度を30-60%に
+                        lightness = 50 + co2Level * 20; // 明るさを50-70%に
+                        saturation = 50; // 彩度を50%に
+                        
+                        // CO2は酸素より優先度を下げる
+                        if (zBuffer[bufferIndex].char === ' ' || zBuffer[bufferIndex].depth > 0) {
+                            zBuffer[bufferIndex] = {
+                                char: displayChar,
+                                depth: 0, // 酸素より前、他のオブジェクトより後ろに表示
+                                color: `hsla(0, ${saturation}%, ${lightness}%, ${opacity}%)`
+                            };
                         }
-                    });
+                    }
+                }
+            }
+        }
+        
+        // バクテリアを描画（植物の描画の後に追加）
+        for (const bacterium of bacteria) {
+            const projectedX = Math.floor(bacterium.position.x);
+            const projectedY = Math.floor(bacterium.position.y);
+            
+            if (projectedX >= 0 && projectedX < width && 
+                projectedY >= 0 && projectedY < height) {
+                const bufferIndex = projectedY * width + projectedX;
+                
+                if (bacterium.position.z < zBuffer[bufferIndex].depth) {
+                    // エネルギーに応じて表示を変える
+                    const displayChar = bacterium.energy > 0.7 ? '·' : 
+                                     bacterium.energy > 0.4 ? ',' : '˙';
+                    
+                    // より地味な色に変更
+                    const hue = 40; // 茶色っぽい色
+                    const saturation = 20 + bacterium.energy * 15; // 彩度を下げる
+                    const lightness = 30 + bacterium.energy * 15; // 明度も抑える
+                    const opacity = 30 + bacterium.energy * 20; // 透明度を上げる
+                    
+                    zBuffer[bufferIndex] = {
+                        char: displayChar,
+                        depth: bacterium.position.z,
+                        color: `hsla(${hue}, ${saturation}%, ${lightness}%, ${opacity}%)`
+                    };
+                }
+            }
+        }
+        
+        // 植物の死骸を描画
+        for (const debris of plantDebris) {
+            const projectedX = Math.floor(debris.position.x);
+            const projectedY = Math.floor(debris.position.y);
+            
+            if (projectedX >= 0 && projectedX < width && 
+                projectedY >= 0 && projectedY < height) {
+                const bufferIndex = projectedY * width + projectedX;
+                
+                if (debris.position.z < zBuffer[bufferIndex].depth) {
+                    const displayChar = debris.isSettled ? '░' : '▒';
+                    
+                    zBuffer[bufferIndex] = {
+                        char: displayChar,
+                        depth: debris.position.z,
+                        color: `hsla(${debris.color.hue}, ${debris.color.saturation}%, ${debris.color.lightness}%, ${debris.color.opacity}%)`
+                    };
+                }
+            }
+        }
+
+        // 毒素を描画
+        for (const toxic of toxicMatters) {
+            const projectedX = Math.floor(toxic.position.x);
+            const projectedY = Math.floor(toxic.position.y);
+            
+            if (projectedX >= 0 && projectedX < width && 
+                projectedY >= 0 && projectedY < height) {
+                const bufferIndex = projectedY * width + projectedX;
+                
+                if (toxic.position.z < zBuffer[bufferIndex].depth) {
+                    // 分解段階に応じて表示を変える
+                    let displayChar, color;
+                    
+                    switch (toxic.decompositionStage) {
+                        case 0: // 未分解の毒素
+                            displayChar = '▓';
+                            color = `hsla(300, 70%, 30%, ${toxic.toxicity * 20}%)`; // より暗い紫色、透明度をさらに上げる
+                            break;
+                        case 1: // 分解中
+                            displayChar = '▒';
+                            color = `hsla(300, 50%, 40%, ${(1 - toxic.decompositionProgress) * toxic.toxicity * 20}%)`; // さらに暗い紫色、透明度をさらに上げる
+                            break;
+                        case 2: // 堆肥
+                            displayChar = '░';
+                            color = 'hsla(30, 70%, 30%, 70%)'; // 茶色
+                            break;
+                    }
+                    
+                    zBuffer[bufferIndex] = {
+                        char: displayChar,
+                        depth: toxic.position.z,
+                        color: color
+                    };
                 }
             }
         }
@@ -3049,99 +2048,8 @@ document.addEventListener('DOMContentLoaded', () => {
         for (let y = 0; y < height; y++) {
             for (let x = 0; x < width; x++) {
                 const index = y * width + x;
-                const resources = resourceBuffer[index];
-                
                 if (zBuffer[index].char !== ' ') {
-                    // 生命体の描画
                     output += `<span style="color:${zBuffer[index].color}">${zBuffer[index].char}</span>`;
-                } else if (resources && resources.size > 0) {
-                    // リソースの描画
-                    let resourceChar = '·';
-                    let resourceColor = '';
-                    let maxAmount = 0;
-                    let opacity = 0;
-                    
-                    // 最も量の多いリソースを特定
-                    resources.forEach((amount, type) => {
-                        if (amount > maxAmount) {
-                            maxAmount = amount;
-                            
-                            // リソースタイプに基づいて色を設定
-                            switch (type) {
-                                case METABOLIC_PRODUCTS.OXYGEN:
-                                    resourceColor = 'hsl(180, 100%, 30%)'; // 水色
-                                    resourceChar = '░'; // 酸素は薄い網掛け
-                                    break;
-                                case METABOLIC_PRODUCTS.GLUCOSE:
-                                    resourceColor = 'hsl(60, 100%, 30%)'; // 黄色
-                                    resourceChar = '▒'; // グルコースは中程度の網掛け
-                                    break;
-                                case METABOLIC_PRODUCTS.AMINO_ACIDS:
-                                    resourceColor = 'hsl(120, 100%, 30%)'; // 緑色
-                                    resourceChar = '▒'; // アミノ酸も中程度の網掛け
-                                    break;
-                                case METABOLIC_PRODUCTS.WASTE:
-                                    resourceColor = 'hsl(30, 70%, 30%)'; // 茶色
-                                    resourceChar = '░'; // 廃棄物は薄い網掛け
-                                    break;
-                                case METABOLIC_PRODUCTS.TOXINS:
-                                    resourceColor = 'hsl(300, 100%, 30%)'; // 紫色（デフォルト）
-                                    resourceChar = '▒'; // 毒素は中程度の網掛け
-                                    break;
-                                default:
-                                    // 毒素の種類に応じた色を設定
-                                    if (type.startsWith(METABOLIC_PRODUCTS.TOXINS + '_')) {
-                                        const toxinType = type.split('_')[1];
-                                        switch (toxinType) {
-                                            case 'neural':
-                                                resourceColor = 'hsl(300, 100%, 30%)'; // 紫色（神経毒）
-                                                break;
-                                            case 'cellular':
-                                                resourceColor = 'hsl(0, 100%, 30%)'; // 赤色（細胞毒）
-                                                break;
-                                            case 'digestive':
-                                                resourceColor = 'hsl(60, 100%, 30%)'; // 黄色（消化器毒）
-                                                break;
-                                            case 'genetic':
-                                                resourceColor = 'hsl(270, 100%, 30%)'; // 青紫色（遺伝子操作毒素）
-                                                break;
-                                            default:
-                                                resourceColor = 'hsl(300, 100%, 30%)'; // デフォルト紫色
-                                        }
-                                        resourceChar = '▒'; // 毒素は中程度の網掛け
-                                    } else {
-                                        resourceColor = 'hsl(0, 0%, 30%)'; // グレー
-                                        resourceChar = '░';
-                                    }
-                            }
-                            
-                            // 量に基づいて透明度を設定（最大0.7に制限して全体的に透明に）
-                            opacity = Math.min(0.3, amount * 2);
-                        }
-                    });
-                    
-                    // 量が非常に少ない場合は表示しない（閾値を0.02に設定）
-                    if (maxAmount < 0.02) {
-                        output += '&nbsp;';
-                    } else {
-                        // リソース量に応じて表示する文字の大きさを調整
-                        if (maxAmount > 0.3) {
-                            // 量が多い場合は、リソースタイプに応じた特殊文字をそのまま使用
-                            opacity = Math.min(0.3, opacity); // 最大透明度を0.6に制限
-                        } else if (maxAmount > 0.1) {
-                            // 量が中程度の場合は薄い網掛け
-                            resourceChar = '░';
-                            opacity = Math.min(0.3, opacity); // 最大透明度を0.4に制限
-                        } else {
-                            // 量が少ない場合はさらに薄く
-                            resourceChar = '·';
-                            opacity = Math.min(0.3, opacity); // 最大透明度を0.3に制限
-                        }
-                        
-                        // 透明度を適用した色を生成
-                        const rgbaColor = `rgba(${hslToRgb(resourceColor)}, ${opacity})`;
-                        output += `<span style="color:${rgbaColor}">${resourceChar}</span>`;
-                    }
                 } else {
                     output += '&nbsp;';
                 }
@@ -3159,166 +2067,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (time % 60 === 0) {
             const predatorCount = lifeforms.filter(l => l.isPredator).length;
             const preyCount = lifeforms.length - predatorCount;
-            console.log(`Time: ${time}, Lifeforms: ${lifeforms.length} (Predators: ${predatorCount}, Prey: ${preyCount})`);
+            console.log(`Time: ${time}, Lifeforms: ${lifeforms.length} (Predators: ${predatorCount}, Prey: ${preyCount}), Foods: ${plants.length}`);
         }
-        
-        // FPS制限を実装（30FPS）
-        setTimeout(() => {
-            requestAnimationFrame(render);
-        }, 1000 / 10); // 30FPSに制限
-        
-        // 生命体の描画
-        for (let i = 0; i < lifeforms.length; i++) {
-            const lifeform = lifeforms[i];
-            
-            // ... 既存のコード ...
-            
-            // メタプログラミング能力の視覚化
-            if (lifeform.metaprogrammingSystem) {
-                // メタプログラミング能力が高い生命体は特別な輝きを持つ
-                const metaAbility = lifeform.dna.metaprogrammingAbility || 0;
-                if (metaAbility > 0.7) {
-                    // 高度なメタプログラミング能力を持つ生命体は特別なパターンで表示
-                    const patternChar = '⚙'; // 歯車マーク
-                    const x = Math.floor(lifeform.position.x);
-                    const y = Math.floor(lifeform.position.y);
-                    
-                    if (x >= 0 && x < width && y >= 0 && y < height) {
-                        // 生命体の周囲にパターンを描画
-                        const patternRadius = 1;
-                        for (let px = -patternRadius; px <= patternRadius; px++) {
-                            for (let py = -patternRadius; py <= patternRadius; py++) {
-                                const patternX = x + px;
-                                const patternY = y + py;
-                                
-                                if (patternX >= 0 && patternX < width && patternY >= 0 && patternY < height &&
-                                    (px !== 0 || py !== 0) && // 中心は除外
-                                    Math.random() < metaAbility * 0.3) { // 確率で表示
-                                    
-                                    // 深度に基づいて表示するかどうか判断
-                                    const patternZ = lifeform.position.z + (Math.random() - 0.5) * 2;
-                                    if (patternZ > zBuffer[patternY][patternX]) {
-                                        // パターンを描画
-                                        const patternColor = getColor(lifeform);
-                                        patternColor.s = 0.8; // 彩度を上げる
-                                        patternColor.l = 0.7; // 明度を上げる
-                                        
-                                        // 最適化中のアルゴリズムがある場合は色を変える
-                                        if (lifeform.metaprogrammingSystem.currentOptimizationTarget) {
-                                            patternColor.h = (patternColor.h + 180) % 360; // 補色
-                                        }
-                                        
-                                        const patternRgb = hslToRgb(patternColor);
-                                        const patternStyle = `color: rgb(${patternRgb.r}, ${patternRgb.g}, ${patternRgb.b})`;
-                                        
-                                        display[patternY][patternX] = {
-                                            char: patternChar,
-                                            style: patternStyle,
-                                            z: patternZ
-                                        };
-                                        
-                                        zBuffer[patternY][patternX] = patternZ;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                // 最適化履歴の分析
-                const optimizationHistory = lifeform.metaprogrammingSystem.optimizationHistory;
-                if (optimizationHistory.length > 0) {
-                    // 最近の最適化を取得
-                    const recentOptimizations = optimizationHistory.slice(-5);
-                    
-                    // 最適化の成功率を計算
-                    const successfulOptimizations = recentOptimizations.filter(opt => 
-                        opt.successRate > 0.6
-                    ).length;
-                    
-                    const optimizationSuccessRate = successfulOptimizations / Math.max(1, recentOptimizations.length);
-                    
-                    // 成功率が高い場合は生命体の色を少し変える
-                    if (optimizationSuccessRate > 0.7) {
-                        // 色相を少し変える
-                        lifeform.baseHue = (lifeform.baseHue + 10) % 360;
-                    }
-                }
-            }
-        }
-    }
+            setTimeout(() => {
+                requestAnimationFrame(render);
+            }, 1000 / 60);    }
     
-    // HSL色をRGBに変換するヘルパー関数
-    function hexToRgb(hslColor) {
-        // 一時的なdiv要素を作成して色変換を行う
-        const tempDiv = document.createElement('div');
-        tempDiv.style.color = hslColor;
-        document.body.appendChild(tempDiv);
-        
-        // 計算された色を取得
-        const computedColor = window.getComputedStyle(tempDiv).color;
-        document.body.removeChild(tempDiv);
-        
-        // "rgb(r, g, b)" または "rgba(r, g, b, a)" 形式から数値部分を抽出
-        const rgbMatch = computedColor.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*[\d.]+)?\)/);
-        if (rgbMatch) {
-            return `${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}`;
-        }
-        
-        // 変換できない場合はデフォルト値を返す
-        return '200, 200, 200';
-    }
-    
-    // HSL色をRGBに変換するヘルパー関数（数学的計算による方法）
-    function hslToRgb(hslColor) {
-        // HSL形式の文字列から値を抽出
-        const hslMatch = hslColor.match(/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/);
-        if (!hslMatch) {
-            return '200, 200, 200'; // デフォルト値
-        }
-        
-        // HSL値を取得
-        let h = parseInt(hslMatch[1]) / 360;
-        let s = parseInt(hslMatch[2]) / 100;
-        let l = parseInt(hslMatch[3]) / 100;
-        
-        let r, g, b;
-        
-        if (s === 0) {
-            // 彩度が0の場合はグレースケール
-            r = g = b = l;
-        } else {
-            // HSLからRGBへの変換
-            const hue2rgb = (p, q, t) => {
-                if (t < 0) t += 1;
-                if (t > 1) t -= 1;
-                if (t < 1/6) return p + (q - p) * 6 * t;
-                if (t < 1/2) return q;
-                if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
-                return p;
-            };
-            
-            const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-            const p = 2 * l - q;
-            
-            r = hue2rgb(p, q, h + 1/3);
-            g = hue2rgb(p, q, h);
-            b = hue2rgb(p, q, h - 1/3);
-        }
-        
-        // 0-255の範囲に変換
-        r = Math.round(r * 255);
-        g = Math.round(g * 255);
-        b = Math.round(b * 255);
-        
-        return `${r}, ${g}, ${b}`;
-    }
-    
-    // アニメーション開始（environmentインスタンス作成後に呼び出し）
+    // アニメーション開始
     render();
     
     // ウィンドウサイズ変更時の処理
     window.addEventListener('resize', () => {
+        // フォントサイズを調整（正方形のグリッドになるように）
         const fontWidth = Math.floor(window.innerWidth / width);
         const fontHeight = Math.floor(window.innerHeight / height);
         const fontSize = Math.min(fontWidth, fontHeight);
@@ -3330,1599 +2090,399 @@ document.addEventListener('DOMContentLoaded', () => {
     const fontHeight = Math.floor(window.innerHeight / height);
     const fontSize = Math.min(fontWidth, fontHeight);
     canvas.style.fontSize = `${fontSize}px`;
-    
-    function init() {
-        // 環境が初期化されていない場合は初期化
-        if (!environment) {
-            environment = new Environment();
-        }
-        
-        // 初期生命体を生成
-        lifeforms = initializeLifeforms();
-        
-        // 環境に初期リソースを追加
-        for (let i = 0; i < width; i++) {
-            for (let j = 0; j < height; j++) {
-                // ランダムな確率で栄養素を配置（確率を15%から5%に大幅減少）
-                if (Math.random() < 0.05) {  // 5%の確率で配置
-                    // グルコースの量をさらに減少（0.3から0.15に）
-                    const glucoseAmount = Math.max(0, 
-                        (Math.random() + Math.random() + Math.random()) / 3 * 0.15
-                    );
-                    
-                    // 酸素の量も同様に減少
-                    const oxygenAmount = Math.max(0,
-                        (Math.random() + Math.random() + Math.random()) / 3 * 0.15
-                    );
-                    
-                    // 最小閾値をさらに下げる
-                    if (glucoseAmount > 0.02) {
-                        environment.addResource(
-                            METABOLIC_PRODUCTS.GLUCOSE,
-                            {x: i, y: j},
-                            glucoseAmount
-                        );
-                    }
-                    
-                    if (oxygenAmount > 0.02) {
-                        environment.addResource(
-                            METABOLIC_PRODUCTS.OXYGEN,
-                            {x: i, y: j},
-                            oxygenAmount
-                        );
-                    }
-                }
-            }
-        }
-        
-        // クラスター数をさらに減少させ、サイズも縮小
-        for (let cluster = 0; cluster < 2; cluster++) {  // 3から2に減少
-            const centerX = Math.random() * width;
-            const centerY = Math.random() * height;
-            const radius = 2 + Math.random() * 4;  // 半径を3-10から2-6に減少
-            
-            for (let i = -radius; i <= radius; i++) {
-                for (let j = -radius; j <= radius; j++) {
-                    const x = Math.floor(centerX + i);
-                    const y = Math.floor(centerY + j);
-                    
-                    if (x >= 0 && x < width && y >= 0 && y < height) {
-                        const dist = Math.sqrt(i * i + j * j);
-                        if (dist <= radius) {
-                            const factor = 1 - (dist / radius);
-                            environment.addResource(
-                                METABOLIC_PRODUCTS.GLUCOSE,
-                                {x, y},
-                                factor * 0.15 * Math.random()  // 0.3から0.15に減少
-                            );
-                            environment.addResource(
-                                METABOLIC_PRODUCTS.OXYGEN,
-                                {x, y},
-                                factor * 0.15 * Math.random()  // 0.3から0.15に減少
-                            );
-                        }
-                    }
-                }
-            }
-        }
-        
-        // レンダリング開始
-        requestAnimationFrame(render);
-    }
-    
-    // 生命体の初期化関数
-    function initializeLifeforms() {
-        const newLifeforms = [];  // 新しい配列を作成
-        
-        // 捕食者と非捕食者のバランスを調整
-        const predatorRatio = 0.3; // 30%を捕食者に
-        
-        // 生命体の数を指定
-        const lifeformCount = 50;
-        
-        for (let i = 0; i < lifeformCount; i++) {
-            // 捕食者かどうかを決定
-            const isPredator = Math.random() < predatorRatio;
-            
-            // DNAを生成（完全な形で）
-            const dna = {
-                // 基本的な特性
-                speed: 0.5 + Math.random() * 0.5,
-                efficiency: 0.7 + Math.random() * 0.4,
-                perception: 0.6 + Math.random() * 0.6,
-                foodAttraction: 0.8 + Math.random() * 0.8,
-                socialBehavior: Math.random() * 2 - 1,
-                reproductionRate: 0.3 + Math.random() * 0.7,
-                predatory: isPredator ? 0.7 + Math.random() * 0.3 : Math.random() * 0.5,
-                size: 0.3 + Math.random() * 0.7,
-                
-                // 光合成システム（必須）
-                photosynthesis: {
-                    efficiency: 0.2 + Math.random() * 0.2,
-                    depth: {
-                        optimal: (Math.random() * 10) - 5,
-                        range: 0.2 + Math.random() * 0.3
-                    },
-                    wavelengths: [
-                        { min: 400, max: 500, efficiency: Math.random() },
-                        { min: 500, max: 600, efficiency: Math.random() },
-                        { min: 600, max: 700, efficiency: Math.random() }
-                    ],
-                    adaptations: {
-                        nightMode: Math.random() * 0.3,
-                        stressResponse: Math.random() * 0.5
-                    }
-                },
-                
-                // 毒素システム
-                toxins: {
-                    types: {
-                        neural: {
-                            strength: 0.1 + Math.random() * 0.2,
-                            developmentCost: 0.3,
-                            effectRange: 2 + Math.random() * 3
-                        },
-                        cellular: {
-                            strength: 0.1 + Math.random() * 0.2,
-                            developmentCost: 0.4,
-                            effectRange: 1 + Math.random() * 2
-                        },
-                        digestive: {
-                            strength: 0.1 + Math.random() * 0.2,
-                            developmentCost: 0.2,
-                            effectRange: 1.5 + Math.random() * 2
-                        }
-                    },
-                    resistance: {
-                        neural: 0.1 + Math.random() * 0.2,
-                        cellular: 0.1 + Math.random() * 0.2,
-                        digestive: 0.1 + Math.random() * 0.2
-                    },
-                    adaptation: {
-                        productionRate: Math.random() * 0.3,
-                        storageCapacity: 0.5 + Math.random(),
-                        releaseControl: Math.random()
-                    }
-                },
-                
-                // その他の必須属性
-                mobility: isPredator ? 0.7 + Math.random() * 0.3 : Math.random(),
-                growthRate: 0.1 + Math.random() * 0.4,
-                separationWeight: 0.3 + Math.random() * 0.2,
-                alignmentWeight: 0.3 + Math.random() * 0.2,
-                cohesionWeight: 0.3 + Math.random() * 0.2,
-                depthPreference: (Math.random() * 10) - 5,
-                depthTolerance: 0.2 + Math.random() * 0.2,
-                regenerationRate: Math.random() * 0.05,
-                offspringCount: 1,
-                parentalCare: 0.1 + Math.random() * 0.2,
-                nocturnality: 0.4 + Math.random() * 0.2,
-                territoriality: Math.random() * 0.2
+
+    // 嫌気性バクテリアクラスを追加
+    class AnaerobicBacteria {
+        constructor(x, y, z) {
+            this.position = {
+                x: x !== undefined ? x : Math.random() * width,
+                y: y !== undefined ? y : height - 2 - Math.random() * 3,
+                z: z || 0
             };
+            this.energy = 0.5 + Math.random() * 0.3;
+            this.age = 0;
+            this.maxAge = 250 + Math.floor(Math.random() * 150); // 寿命を250-400に短縮
+            this.decompositionEfficiency = 0.6 + Math.random() * 0.4;
+            this.size = 0.1 + Math.random() * 0.1;
+            this.velocity = { x: 0, y: 0, z: 0 };
+            this.searchRadius = 15; // 探索範囲を拡大
+            this.currentTarget = null;
             
-            // 生命体を生成
-            // 中央付近に集中して配置
-            const centerX = width / 2;
-            const centerY = height / 2;
-            const radius = 10; // 集中エリアの半径
+            // 嫌気性特性
+            this.oxygenTolerance = 0.4; // 酸素耐性を上げる
+            this.optimalDepth = height - 3;
+            this.depthTolerance = 6; // 深度の許容範囲を広げる
+        }
+
+        update(plantDebris, oxygens) {
+            this.age++;
+
+            // 基礎代謝によるエネルギー消費
+            this.energy -= 0.0008 * (1 + this.size); // 好気性バクテリアより少し効率的
+
+            // 移動によるエネルギー消費
+            const movementCost = Math.sqrt(
+                this.velocity.x * this.velocity.x +
+                this.velocity.y * this.velocity.y
+            ) * 0.001; // 好気性バクテリアより移動コストが低い
+            this.energy -= movementCost;
             
-            // 捕食者と非捕食者で異なる配置を行う
-            let x, y;
-            if (isPredator) {
-                // 捕食者は外周に配置
-                const angle = (Math.PI * 2 * i) / lifeformCount;
-                x = centerX + Math.cos(angle) * radius;
-                y = centerY + Math.sin(angle) * radius;
+            // 深度効率の計算を改善
+            const optimalDepth = height - 3;
+            const depthDifference = Math.abs(this.position.y - optimalDepth);
+            const depthEfficiency = Math.max(0, 1 - (depthDifference / 5));
+
+            // 不適切な深度でのペナルティ
+            if (depthEfficiency < 0.5) {
+                this.energy -= 0.001 * (1 - depthEfficiency);
+            }
+
+            // 酸素による悪影響（嫌気性バクテリアなので）
+            if (oxygens && typeof oxygens.getOxygenAt === 'function') {
+                const localOxygen = oxygens.getOxygenAt(this.position.x, this.position.y);
+                if (localOxygen > 0.4) { // 高酸素環境でのダメージ
+                    this.energy -= 0.002 * (localOxygen - 0.4);
+                }
+            }
+
+            // 死亡条件をチェック
+            if (this.energy <= 0 || // エネルギー切れ
+                this.age >= this.maxAge) { // 寿命
+                return true;
+            }
+            
+            // 現在の対象がなければ新しい植物の死骸を探す
+            let foundDebris = false;
+            
+            // 現在の対象がなければ新しい植物の死骸を探す
+            if (!this.currentTarget) {
+                let closestDist = this.searchRadius;
+                let closestDebris = null;
+
+                for (const debris of plantDebris) {
+                    if (debris.isSettled && !debris.isCompost) {
+                        const dx = this.position.x - debris.position.x;
+                        const dy = this.position.y - debris.position.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+
+                        if (distance < closestDist) {
+                            closestDist = distance;
+                            closestDebris = debris;
+                        }
+                    }
+                }
+
+                if (closestDebris) {
+                    this.currentTarget = closestDebris;
+                }
+            }
+
+            // 対象が見つかった場合の処理
+            if (this.currentTarget) {
+                const dx = this.currentTarget.position.x - this.position.x;
+                const dy = this.currentTarget.position.y - this.position.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (distance < 3) {
+                    foundDebris = true;
+                    this.currentTarget.anaerobicBacteriaCount++;
+                    
+                    // エネルギー消費と獲得（深度効率に応じて）
+                    const energyGain = 0.002 * this.decompositionEfficiency * depthEfficiency;
+                    this.energy += energyGain;
+                    
+                    // 分解進行度を増加
+                    const decompositionIncrease = 0.005 * this.decompositionEfficiency * depthEfficiency;
+                    this.currentTarget.decompositionProgress += decompositionIncrease;
+                    
+                    // 堆肥への変換をチェック
+                    if (this.currentTarget.decompositionProgress >= 1) {
+                        this.currentTarget.isCompost = true;
+                        this.currentTarget.compostNutrientValue = 0.8 + Math.random() * 0.2; // 栄養価を設定
+                        this.currentTarget.color = {
+                            hue: 25,
+                            saturation: 70,
+                            lightness: 20,
+                            opacity: 90
+                        };
+                        this.currentTarget = null;
+                    }
+                } else {
+                    // 対象に向かってゆっくり移動
+                    this.velocity.x = (dx / distance) * 0.1;
+                    this.velocity.y = (dy / distance) * 0.1;
+                }
             } else {
-                // 非捕食者は中心付近にランダムに配置
+                // ランダムな移動（より制限された範囲で）
+                if (Math.random() < 0.05) {
+                    this.velocity.x = (Math.random() - 0.5) * 0.1;
+                    this.velocity.y = (Math.random() - 0.5) * 0.1;
+                }
+            }
+
+            // 位置の更新と改善された境界チェック
+            this.position.x += this.velocity.x;
+            this.position.y += this.velocity.y;
+
+            // 水平方向の境界
+            if (this.position.x < 0) {
+                this.position.x = 0;
+                this.velocity.x *= -0.5;
+            } else if (this.position.x >= width) {
+                this.position.x = width - 1;
+                this.velocity.x *= -0.5;
+            }
+            
+            // 垂直方向の境界（より自然な遷移）
+            const minDepth = height - 5;
+            const maxDepth = height - 1;
+            
+            if (this.position.y < minDepth) {
+                // 徐々に下方向に移動
+                const depthForce = 0.005 * (1 - depthEfficiency);
+                this.velocity.y += depthForce;
+                this.velocity.y = Math.min(this.velocity.y, 0.1);
+            } else if (this.position.y > maxDepth) {
+                this.position.y = maxDepth;
+                this.velocity.y = 0;
+            }
+
+            // エネルギー消費と繁殖判定は変更なし
+            // ... existing code ...
+        }
+
+        reproduce() {
+            if (anaerobicBacteria.length >= Math.floor(bacteriaMaxCount * 0.5)) return false;
+
+            const offspringCount = 1 + Math.floor(Math.random() * 2);
+            const energyCost = this.energy * 0.4;
+            this.energy -= energyCost;
+
+            for (let i = 0; i < offspringCount; i++) {
+                const spreadDistance = 2 + Math.random() * 2;
                 const angle = Math.random() * Math.PI * 2;
-                const distance = Math.random() * (radius * 0.6); // 中心から60%以内の範囲
-                x = centerX + Math.cos(angle) * distance;
-                y = centerY + Math.sin(angle) * distance;
-            }
-            
-            // z座標は少し狭い範囲に
-            const z = (Math.random() * 10) - 5;
-            const energy = 0.8 + Math.random() * 0.2;
-            
-            newLifeforms.push(new Lifeform(x, y, z, energy, dna));
-        }
-        
-        return newLifeforms;
-    }
-    
-    // シミュレーション開始
-    init();
-}); 
-
-class EpigeneticState {
-    constructor() {
-        this.methylationPatterns = new Map();
-        this.histoneModifications = new Map();
-        this.environmentalStress = 0;
-    }
-    
-    updateMethylation(gene, stress) {
-        // 環境ストレスに基づいて遺伝子の発現を調整
-        const currentPattern = this.methylationPatterns.get(gene) || 1.0;
-        const newPattern = Math.max(0, Math.min(1, currentPattern + stress * 0.1));
-        this.methylationPatterns.set(gene, newPattern);
-    }
-    
-    getGeneExpression(gene) {
-        // メチル化パターンに基づいて遺伝子発現レベルを返す
-        return this.methylationPatterns.get(gene) || 1.0;
-    }
-} 
-
-class Species {
-    constructor(prototype) {
-        this.prototype = prototype;
-        this.members = new Set();
-        this.geneticSignature = this.calculateGeneticSignature(prototype);
-        this.age = 0;
-        this.lastDivergenceTime = 0;
-    }
-    
-    calculateGeneticDistance(lifeform) {
-        let distance = 0;
-        const weights = {
-            photosynthesis: 0.3,
-            predatory: 0.3,
-            size: 0.2,
-            metabolicPathways: 0.2
-        };
-        
-        // 各特性の差異を重み付けして計算
-        for (const [trait, weight] of Object.entries(weights)) {
-            const diff = Math.abs(this.prototype.dna[trait] - lifeform.dna[trait]);
-            distance += diff * weight;
-        }
-        
-        return distance;
-    }
-    
-    checkSpeciation(lifeform) {
-        const geneticDistance = this.calculateGeneticDistance(lifeform);
-        const speciationThreshold = 0.3;
-        
-        // 遺伝的距離が閾値を超えた場合、新種として分岐
-        if (geneticDistance > speciationThreshold) {
-            return new Species(lifeform);
-        }
-        return null;
-    }
-} 
-
-class LifeformManager {
-    constructor() {
-        this.species = new Set();
-        this.speciesHistory = [];
-        this.divergenceEvents = [];
-    }
-    
-    updateSpecies(lifeforms) {
-        // 既存の種を更新
-        for (const species of this.species) {
-            species.members.clear();
-        }
-        
-        // 各生命体を適切な種に分類
-        for (const lifeform of lifeforms) {
-            let foundSpecies = false;
-            
-            for (const species of this.species) {
-                if (species.calculateGeneticDistance(lifeform) < 0.3) {
-                    species.members.add(lifeform);
-                    foundSpecies = true;
-                    break;
-                }
-            }
-            
-            // 新種の形成
-            if (!foundSpecies) {
-                const newSpecies = new Species(lifeform);
-                this.species.add(newSpecies);
-                this.divergenceEvents.push({
-                    time: time,
-                    parentSpecies: null,
-                    newSpecies: newSpecies
-                });
-            }
-        }
-        
-        // 種の絶滅をチェック
-        for (const species of this.species) {
-            if (species.members.size === 0) {
-                this.species.delete(species);
-                this.speciesHistory.push({
-                    species: species,
-                    extinctionTime: time
-                });
-            }
-        }
-    }
-} 
-
-class DecisionSystem {
-    constructor() {
-        this.memories = [];
-        this.behaviorWeights = {
-            exploration: 0.5,
-            socialInteraction: 0.5,
-            resourceGathering: 0.5,
-            defense: 0.5
-        };
-        this.learningRate = 0.1;
-    }
-
-    makeDecision(currentState, environment) {
-        // 過去の経験と現在の状態に基づいて意思決定
-        const decision = {
-            action: null,
-            confidence: 0
-        };
-
-        // 状態評価
-        const stateEvaluation = this.evaluateState(currentState);
-        
-        // 行動選択（各行動の期待値を計算）
-        const actions = this.getPossibleActions(currentState);
-        for (const action of actions) {
-            const expectedValue = this.calculateExpectedValue(action, stateEvaluation);
-            if (expectedValue > decision.confidence) {
-                decision.action = action;
-                decision.confidence = expectedValue;
-            }
-        }
-
-        return decision;
-    }
-
-    learn(action, outcome) {
-        // 結果に基づいて重みを更新
-        const reward = this.calculateReward(outcome);
-        this.updateWeights(action, reward);
-        this.memories.push({action, outcome, reward});
-        
-        // 古い記憶を削除
-        if (this.memories.length > 100) {
-            this.memories.shift();
-        }
-    }
-} 
-
-class HomeostasisSystem {
-    constructor() {
-        this.parameters = {
-            temperature: 0.5,
-            pH: 0.5,
-            osmolicBalance: 0.5,
-            energyBalance: 0.5
-        };
-        this.optimalRanges = {
-            temperature: {min: 0.4, max: 0.6},
-            pH: {min: 0.45, max: 0.55},
-            osmolicBalance: {min: 0.4, max: 0.6},
-            energyBalance: {min: 0.3, max: 0.7}
-        };
-    }
-
-    regulate() {
-        let stress = 0;
-        for (const [param, value] of Object.entries(this.parameters)) {
-            const range = this.optimalRanges[param];
-            if (value < range.min || value > range.max) {
-                // ストレス応答を生成
-                stress += Math.abs(value - (range.max + range.min) / 2);
-                // 修正アクションを生成
-                this.generateCorrectiveAction(param, value, range);
-            }
-        }
-        return stress;
-    }
-} 
-
-class EvolutionaryLearning {
-    constructor() {
-        this.adaptations = new Map();
-        this.fitnessHistory = [];
-        this.generationCount = 0;
-    }
-
-    adapt(environment, stress) {
-        // 環境要因に基づいて適応を生成
-        for (const [factor, value] of Object.entries(environment)) {
-            const currentAdaptation = this.adaptations.get(factor) || 0;
-            const adaptationChange = this.calculateAdaptationChange(value, stress);
-            this.adaptations.set(factor, currentAdaptation + adaptationChange);
-        }
-    }
-
-    calculateFitness() {
-        let fitness = 0;
-        for (const [factor, adaptation] of this.adaptations) {
-            fitness += this.evaluateAdaptation(factor, adaptation);
-        }
-        this.fitnessHistory.push({
-            generation: this.generationCount,
-            fitness: fitness
-        });
-        return fitness;
-    }
-} 
-
-class CognitiveHierarchy {
-    constructor() {
-        // 各レベルの活性化状態
-        this.levels = {
-            reflexes: { active: true, priority: 1.0 },
-            instincts: { active: true, priority: 0.9 },
-            learnedBehaviors: { active: true, priority: 0.8 },
-            tacticalThinking: { active: true, priority: 0.7 },
-            strategicThinking: { active: true, priority: 0.6 },
-            socialThinking: { active: true, priority: 0.5 },
-            abstractThinking: { active: true, priority: 0.4 },
-            metacognition: { active: true, priority: 0.3 }
-        };
-        
-        // 各レベルのエネルギーコスト
-        this.energyCosts = {
-            reflexes: 0.001,
-            instincts: 0.002,
-            learnedBehaviors: 0.005,
-            tacticalThinking: 0.01,
-            strategicThinking: 0.02,
-            socialThinking: 0.03,
-            abstractThinking: 0.04,
-            metacognition: 0.05
-        };
-        
-        // 各レベルの発達度
-        this.development = {
-            reflexes: 1.0,  // 反射は生まれつき完全に発達
-            instincts: 0.8, // 本能もほぼ発達
-            learnedBehaviors: 0.2, // 学習行動は経験により発達
-            tacticalThinking: 0.1,
-            strategicThinking: 0.05,
-            socialThinking: 0.1,
-            abstractThinking: 0.02,
-            metacognition: 0.01
-        };
-        
-        // 思考の履歴
-        this.thoughtHistory = [];
-        
-        // 創発的特性の追跡
-        this.emergentProperties = {
-            creativity: 0,
-            adaptability: 0,
-            consciousness: 0
-        };
-    }
-    
-    // 各レベルの思考プロセスを実行
-    process(lifeform, environment, others) {
-        const results = {};
-        let totalInfluence = 0;
-        
-        // エネルギーが少ない場合は高次の思考を制限
-        this.adjustActiveLevels(lifeform.energy);
-        
-        // 各レベルの処理を実行
-        if (this.levels.reflexes.active) {
-            results.reflexes = this.processReflexes(lifeform, environment);
-            totalInfluence += results.reflexes.influence * this.levels.reflexes.priority;
-            lifeform.energy -= this.energyCosts.reflexes;
-        }
-        
-        if (this.levels.instincts.active) {
-            results.instincts = this.processInstincts(lifeform, environment);
-            totalInfluence += results.instincts.influence * this.levels.instincts.priority;
-            lifeform.energy -= this.energyCosts.instincts;
-        }
-        
-        // 以下同様に各レベルの処理を実行...
-        
-        // 思考履歴に追加
-        this.thoughtHistory.push({
-            time: Date.now(),
-            results: results,
-            energy: lifeform.energy
-        });
-        
-        // 履歴が長すぎる場合は古いものを削除
-        if (this.thoughtHistory.length > 100) {
-            this.thoughtHistory.shift();
-        }
-        
-        // 創発的特性の更新
-        this.updateEmergentProperties();
-        
-        return this.integrateResults(results, totalInfluence);
-    }
-    
-    // エネルギーレベルに応じて活性化するレベルを調整
-    adjustActiveLevels(energy) {
-        // エネルギーが少ない場合は高次の思考を無効化
-        this.levels.metacognition.active = energy > 0.7;
-        this.levels.abstractThinking.active = energy > 0.6;
-        this.levels.socialThinking.active = energy > 0.5;
-        this.levels.strategicThinking.active = energy > 0.4;
-        this.levels.tacticalThinking.active = energy > 0.3;
-        // 基本的な機能は常に活性化
-        this.levels.learnedBehaviors.active = energy > 0.2;
-        this.levels.instincts.active = energy > 0.1;
-        this.levels.reflexes.active = true; // 反射は常に活性化
-    }
-    
-    // 各思考レベルの処理メソッド
-    processReflexes(lifeform, environment) {
-        // 即時的な反応を処理
-        // 例: 危険からの回避、光への反応など
-        return { influence: 0.5, action: 'avoid_danger' };
-    }
-    
-    processInstincts(lifeform, environment) {
-        // 本能的な行動を処理
-        // 例: 食料探索、繁殖行動など
-        return { influence: 0.6, action: 'seek_food' };
-    }
-    
-    // 他のレベルの処理メソッドも同様に実装...
-    
-    // 創発的特性の更新
-    updateEmergentProperties() {
-        // 思考履歴から創発的特性を計算
-        
-        // 創造性: 新しい行動パターンの発見
-        this.emergentProperties.creativity = this.calculateCreativity();
-        
-        // 適応性: 環境変化への対応能力
-        this.emergentProperties.adaptability = this.calculateAdaptability();
-        
-        // 意識: 自己認識と環境認識の度合い
-        this.emergentProperties.consciousness = this.calculateConsciousness();
-    }
-    
-    // 各創発的特性の計算メソッド
-    calculateCreativity() {
-        // 思考履歴から新しい行動パターンの多様性を計算
-        // 実装例: 行動の多様性指数を計算
-        return 0.5; // 仮の値
-    }
-    
-    calculateAdaptability() {
-        // 環境変化に対する適応度を計算
-        return 0.5; // 仮の値
-    }
-    
-    calculateConsciousness() {
-        // 自己認識と環境認識の度合いを計算
-        // メタ認知の活性度と相関
-        return this.levels.metacognition.active ? 0.8 : 0.2;
-    }
-    
-    // 各レベルの結果を統合
-    integrateResults(results, totalInfluence) {
-        // 各レベルの結果を統合して最終的な行動決定を行う
-        const finalDecision = {
-            action: null,
-            confidence: 0
-        };
-        
-        // 影響度の高い行動を選択
-        for (const [level, result] of Object.entries(results)) {
-            const weight = result.influence * this.levels[level].priority / totalInfluence;
-            if (weight > finalDecision.confidence) {
-                finalDecision.action = result.action;
-                finalDecision.confidence = weight;
-            }
-        }
-        
-        return finalDecision;
-    }
-} 
-
-class DNARepairSystem {
-    constructor(lifeform) {
-        this.lifeform = lifeform;
-        this.errorDetectionRate = lifeform.dna.errorDetection || 0.6; // エラー検出能力
-        this.repairEfficiency = lifeform.dna.repairEfficiency || 0.7; // 修復効率
-        this.energyCost = 0.01; // 修復のエネルギーコスト
-        this.errorLog = []; // 検出されたエラーのログ
-        this.repairHistory = []; // 修復履歴
-        this.checksumTable = new Map(); // 遺伝子のチェックサム
-        
-        // 初期チェックサムの計算
-        this.calculateChecksums();
-    }
-    
-    // 遺伝子のチェックサムを計算
-    calculateChecksums() {
-        for (const [gene, value] of Object.entries(this.lifeform.dna)) {
-            if (typeof value === 'number') {
-                // 単純な数値のチェックサム
-                this.checksumTable.set(gene, this.calculateChecksum(value));
-            } else if (typeof value === 'object' && value !== null) {
-                // ネストされたオブジェクトの場合は再帰的に処理
-                this.calculateNestedChecksums(gene, value);
-            }
-        }
-    }
-    
-    // ネストされたオブジェクトのチェックサムを計算
-    calculateNestedChecksums(prefix, obj) {
-        for (const [key, value] of Object.entries(obj)) {
-            const fullKey = `${prefix}.${key}`;
-            if (typeof value === 'number') {
-                this.checksumTable.set(fullKey, this.calculateChecksum(value));
-            } else if (typeof value === 'object' && value !== null) {
-                this.calculateNestedChecksums(fullKey, value);
-            }
-        }
-    }
-    
-    // 単純なチェックサム計算（例：値を10倍して小数点以下を切り捨て、各桁の和を計算）
-    calculateChecksum(value) {
-        const scaled = Math.floor(value * 10);
-        let sum = 0;
-        let num = scaled;
-        while (num > 0) {
-            sum += num % 10;
-            num = Math.floor(num / 10);
-        }
-        return sum;
-    }
-    
-    // DNAのエラーを検出
-    detectErrors() {
-        const detectedErrors = [];
-        
-        // チェックサムを使ってエラーを検出
-        for (const [gene, originalChecksum] of this.checksumTable.entries()) {
-            // 遺伝子パスを解析
-            const genePath = gene.split('.');
-            let target = this.lifeform.dna;
-            let valid = true;
-            
-            for (let i = 0; i < genePath.length - 1; i++) {
-                if (target[genePath[i]]) {
-                    target = target[genePath[i]];
-                } else {
-                    valid = false;
-                    break;
-                }
-            }
-            
-            const finalGene = genePath[genePath.length - 1];
-            if (valid && target[finalGene] !== undefined) {
-                const currentValue = target[finalGene];
-                const currentChecksum = this.calculateChecksum(currentValue);
                 
-                // チェックサムが一致しない場合はエラー
-                if (currentChecksum !== originalChecksum) {
-                    // エラー検出率に基づいて検出
-                    if (Math.random() < this.errorDetectionRate) {
-                        detectedErrors.push({
-                            gene: gene,
-                            originalChecksum: originalChecksum,
-                            currentChecksum: currentChecksum,
-                            currentValue: currentValue
-                        });
-                    }
-                }
-            }
-        }
-        
-        this.errorLog = [...this.errorLog, ...detectedErrors];
-        return detectedErrors;
-    }
-    
-    // 検出されたエラーを修復
-    repairErrors() {
-        if (this.errorLog.length === 0) return 0;
-        
-        let repairedCount = 0;
-        const remainingErrors = [];
-        
-        for (const error of this.errorLog) {
-            // 修復効率に基づいて修復を試みる
-            if (Math.random() < this.repairEfficiency) {
-                // 遺伝子パスを解析
-                const genePath = error.gene.split('.');
-                let target = this.lifeform.dna;
-                let valid = true;
-                
-                for (let i = 0; i < genePath.length - 1; i++) {
-                    if (target[genePath[i]]) {
-                        target = target[genePath[i]];
-                    } else {
-                        valid = false;
-                        break;
-                    }
-                }
-                
-                const finalGene = genePath[genePath.length - 1];
-                if (valid && target[finalGene] !== undefined) {
-                    // 値を調整して正しいチェックサムに近づける
-                    let bestValue = target[finalGene];
-                    let bestDiff = Math.abs(this.calculateChecksum(bestValue) - error.originalChecksum);
-                    
-                    // 値を少しずつ変えてチェックサムが合う値を探す
-                    for (let i = 0; i < 20; i++) {
-                        const testValue = target[finalGene] * (1 + (Math.random() - 0.5) * 0.1);
-                        const testChecksum = this.calculateChecksum(testValue);
-                        const diff = Math.abs(testChecksum - error.originalChecksum);
-                        
-                        if (diff < bestDiff) {
-                            bestValue = testValue;
-                            bestDiff = diff;
-                            
-                            // 完全に一致したら終了
-                            if (diff === 0) break;
-                        }
-                    }
-                    
-                    // 修復を適用
-                    target[finalGene] = bestValue;
-                    
-                    // 修復履歴に追加
-                    this.repairHistory.push({
-                        time: Date.now(),
-                        gene: error.gene,
-                        from: error.currentValue,
-                        to: bestValue
-                    });
-                    
-                    repairedCount++;
-                    
-                    // エネルギーコストを適用
-                    this.lifeform.energy -= this.energyCost;
-                } else {
-                    remainingErrors.push(error);
-                }
-            } else {
-                remainingErrors.push(error);
-            }
-        }
-        
-        // 修復できなかったエラーを保持
-        this.errorLog = remainingErrors;
-        
-        return repairedCount;
-    }
-    
-    // 定期的なDNA整合性チェックと修復
-    update() {
-        // エラー検出
-        const errors = this.detectErrors();
-        
-        // エラーがあれば修復を試みる
-        if (errors.length > 0) {
-            const repairedCount = this.repairErrors();
-            
-            // 修復後にチェックサムを更新
-            if (repairedCount > 0) {
-                this.calculateChecksums();
-            }
-            
-            return {
-                detected: errors.length,
-                repaired: repairedCount
-            };
-        }
-        
-        return {
-            detected: 0,
-            repaired: 0
-        };
-    }
-}
-
-class CommunicationSystem {
-    constructor(lifeform) {
-        this.lifeform = lifeform;
-        this.messageQueue = []; // 送信待ちメッセージ
-        this.receivedMessages = []; // 受信したメッセージ
-        this.knownPeers = new Map(); // 通信相手の記録
-        this.communicationRange = 5 + lifeform.dna.perception * 5; // 通信範囲
-        this.bandwidth = lifeform.dna.communicationBandwidth || 0.5; // 通信帯域幅
-        this.reliability = lifeform.dna.communicationReliability || 0.7; // 通信信頼性
-        this.energyCostPerMessage = 0.005; // メッセージ送信のエネルギーコスト
-        
-        // メッセージタイプ
-        this.MESSAGE_TYPES = {
-            RESOURCE_LOCATION: 'resource_location',
-            THREAT_WARNING: 'threat_warning',
-            MATING_REQUEST: 'mating_request',
-            COOPERATION_OFFER: 'cooperation_offer',
-            TERRITORY_CLAIM: 'territory_claim',
-            KNOWLEDGE_SHARE: 'knowledge_share'
-        };
-    }
-    
-    // メッセージを送信キューに追加
-    queueMessage(type, data, targetId = null) {
-        // エネルギーが足りない場合は送信しない
-        if (this.lifeform.energy < this.energyCostPerMessage) return false;
-        
-        const message = {
-            id: Math.random().toString(36).substr(2, 9), // ユニークID
-            type: type,
-            data: data,
-            senderId: this.lifeform.id,
-            targetId: targetId, // null の場合はブロードキャスト
-            timestamp: Date.now(),
-            ttl: 3 // Time To Live
-        };
-        
-        this.messageQueue.push(message);
-        return true;
-    }
-    
-    // メッセージを送信（実際の通信処理）
-    transmitMessages(lifeforms) {
-        if (this.messageQueue.length === 0) return;
-        
-        const messagesToSend = this.messageQueue.splice(0, Math.ceil(this.bandwidth * 5)); // 帯域幅に基づいて送信数を制限
-        
-        for (const message of messagesToSend) {
-            // エネルギーコストを適用
-            this.lifeform.energy -= this.energyCostPerMessage;
-            
-            // 通信範囲内の生命体にメッセージを送信
-            for (const other of lifeforms) {
-                if (other === this.lifeform || other.isDead) continue;
-                
-                // ターゲットが指定されている場合は、そのターゲットにのみ送信
-                if (message.targetId && message.targetId !== other.id) continue;
-                
-                const distance = this.lifeform.getDistanceTo(other);
-                
-                if (distance <= this.communicationRange) {
-                    // 距離に基づいて信頼性を調整
-                    const distanceReliability = 1 - (distance / this.communicationRange);
-                    const effectiveReliability = this.reliability * distanceReliability;
-                    
-                    // 信頼性に基づいて送信成功を判定
-                    if (Math.random() < effectiveReliability) {
-                        // メッセージを相手の受信キューに追加
-                        other.communicationSystem.receiveMessage({
-                            ...message,
-                            ttl: message.ttl - 1
-                        });
-                        
-                        // 通信相手を記録
-                        this.knownPeers.set(other.id, {
-                            lastContact: Date.now(),
-                            reliability: (this.knownPeers.get(other.id)?.reliability || 0) * 0.9 + 0.1 * effectiveReliability
-                        });
-                    }
-                }
-            }
-        }
-    }
-    
-    // メッセージを受信
-    receiveMessage(message) {
-        // TTLが0以下のメッセージは破棄
-        if (message.ttl <= 0) return;
-        
-        // 送信者を記録
-        if (message.senderId !== this.lifeform.id) {
-            this.knownPeers.set(message.senderId, {
-                lastContact: Date.now(),
-                reliability: (this.knownPeers.get(message.senderId)?.reliability || 0.5)
-            });
-        }
-        
-        // 受信メッセージを処理
-        this.receivedMessages.push(message);
-        
-        // 受信キューが大きすぎる場合は古いメッセージを削除
-        if (this.receivedMessages.length > 20) {
-            this.receivedMessages.shift();
-        }
-    }
-    
-    // 受信したメッセージを処理
-    processMessages() {
-        if (this.receivedMessages.length === 0) return;
-        
-        const processedMessages = [];
-        
-        for (const message of this.receivedMessages) {
-            switch (message.type) {
-                case this.MESSAGE_TYPES.RESOURCE_LOCATION:
-                    this.processResourceLocationMessage(message);
-                    break;
-                case this.MESSAGE_TYPES.THREAT_WARNING:
-                    this.processThreatWarningMessage(message);
-                    break;
-                case this.MESSAGE_TYPES.MATING_REQUEST:
-                    this.processMatingRequestMessage(message);
-                    break;
-                case this.MESSAGE_TYPES.COOPERATION_OFFER:
-                    this.processCooperationOfferMessage(message);
-                    break;
-                case this.MESSAGE_TYPES.TERRITORY_CLAIM:
-                    this.processTerritoryClaimMessage(message);
-                    break;
-                case this.MESSAGE_TYPES.KNOWLEDGE_SHARE:
-                    this.processKnowledgeShareMessage(message);
-                    break;
-            }
-            
-            processedMessages.push(message);
-        }
-        
-        // 処理済みメッセージを削除
-        this.receivedMessages = this.receivedMessages.filter(msg => !processedMessages.includes(msg));
-    }
-    
-    // リソース位置メッセージの処理
-    processResourceLocationMessage(message) {
-        // リソース位置情報を記憶
-        if (!this.lifeform.memory) this.lifeform.memory = {};
-        if (!this.lifeform.memory.resourceLocations) this.lifeform.memory.resourceLocations = [];
-        
-        // 既存の情報を更新または新規追加
-        const existingIndex = this.lifeform.memory.resourceLocations.findIndex(
-            loc => loc.x === message.data.x && loc.y === message.data.y
-        );
-        
-        if (existingIndex >= 0) {
-            this.lifeform.memory.resourceLocations[existingIndex] = {
-                ...message.data,
-                timestamp: Date.now(),
-                reliability: this.knownPeers.get(message.senderId)?.reliability || 0.5
-            };
-        } else {
-            this.lifeform.memory.resourceLocations.push({
-                ...message.data,
-                timestamp: Date.now(),
-                reliability: this.knownPeers.get(message.senderId)?.reliability || 0.5
-            });
-        }
-        
-        // 古い情報を削除
-        const MAX_AGE = 1000 * 60; // 1分
-        this.lifeform.memory.resourceLocations = this.lifeform.memory.resourceLocations.filter(
-            loc => Date.now() - loc.timestamp < MAX_AGE
-        );
-    }
-    
-    // 脅威警告メッセージの処理
-    processThreatWarningMessage(message) {
-        // 脅威情報を記憶
-        if (!this.lifeform.memory) this.lifeform.memory = {};
-        if (!this.lifeform.memory.threats) this.lifeform.memory.threats = [];
-        
-        this.lifeform.memory.threats.push({
-            ...message.data,
-            timestamp: Date.now(),
-            reliability: this.knownPeers.get(message.senderId)?.reliability || 0.5
-        });
-        
-        // 古い情報を削除
-        const MAX_AGE = 1000 * 30; // 30秒
-        this.lifeform.memory.threats = this.lifeform.memory.threats.filter(
-            threat => Date.now() - threat.timestamp < MAX_AGE
-        );
-        
-        // 脅威に対する即時反応（一時的な行動修正）
-        if (this.knownPeers.get(message.senderId)?.reliability > 0.7) {
-            // 信頼性の高い送信者からの警告は即座に反応
-            const threatDirection = {
-                x: message.data.x - this.lifeform.position.x,
-                y: message.data.y - this.lifeform.position.y,
-                z: message.data.z - this.lifeform.position.z
-            };
-            
-            // 脅威から逃げる方向に一時的な加速を適用
-            const magnitude = 0.1;
-            this.lifeform.acceleration.x -= threatDirection.x * magnitude;
-            this.lifeform.acceleration.y -= threatDirection.y * magnitude;
-            this.lifeform.acceleration.z -= threatDirection.z * magnitude;
-        }
-    }
-    
-    // その他のメッセージ処理メソッド...
-    
-    // 知識共有メッセージの処理
-    processKnowledgeShareMessage(message) {
-        // 共有された知識を学習
-        if (message.data.behaviorWeights) {
-            // 行動重みの学習
-            for (const [behavior, weight] of Object.entries(message.data.behaviorWeights)) {
-                if (this.lifeform.behaviorWeights && this.lifeform.behaviorWeights[behavior] !== undefined) {
-                    // 既存の重みと共有された重みを混合
-                    const reliability = this.knownPeers.get(message.senderId)?.reliability || 0.5;
-                    this.lifeform.behaviorWeights[behavior] = 
-                        this.lifeform.behaviorWeights[behavior] * (1 - reliability * 0.2) + 
-                        weight * reliability * 0.2;
-                }
-            }
-        }
-        
-        // 環境知識の共有
-        if (message.data.environmentalKnowledge) {
-            if (!this.lifeform.memory) this.lifeform.memory = {};
-            if (!this.lifeform.memory.environmentalKnowledge) this.lifeform.memory.environmentalKnowledge = {};
-            
-            // 環境知識を更新
-            for (const [key, value] of Object.entries(message.data.environmentalKnowledge)) {
-                if (!this.lifeform.memory.environmentalKnowledge[key]) {
-                    this.lifeform.memory.environmentalKnowledge[key] = value;
-                } else {
-                    // 既存の知識と新しい知識を混合
-                    const reliability = this.knownPeers.get(message.senderId)?.reliability || 0.5;
-                    this.lifeform.memory.environmentalKnowledge[key] = 
-                        this.lifeform.memory.environmentalKnowledge[key] * (1 - reliability * 0.3) + 
-                        value * reliability * 0.3;
-                }
-            }
-        }
-    }
-    
-    // 定期的な情報共有
-    shareKnowledge(lifeforms) {
-        // エネルギーが少ない場合は共有しない
-        if (this.lifeform.energy < 0.3) return;
-        
-        // 共有する知識を準備
-        const knowledgeToShare = {
-            behaviorWeights: this.lifeform.behaviorWeights,
-            environmentalKnowledge: this.lifeform.memory?.environmentalKnowledge || {}
-        };
-        
-        // 近くの生命体に知識を共有
-        this.queueMessage(
-            this.MESSAGE_TYPES.KNOWLEDGE_SHARE,
-            knowledgeToShare
-        );
-    }
-    
-    // 通信システムの更新
-    update(lifeforms) {
-        // メッセージの送信
-        this.transmitMessages(lifeforms);
-        
-        // メッセージの処理
-        this.processMessages();
-        
-        // 定期的な情報共有（低確率で実行）
-        if (Math.random() < 0.02) {
-            this.shareKnowledge(lifeforms);
-        }
-        
-        // リソース発見時の共有
-        if (this.lifeform.lastFoundResource && Date.now() - this.lifeform.lastFoundResource.time < 1000) {
-            this.queueMessage(
-                this.MESSAGE_TYPES.RESOURCE_LOCATION,
-                {
-                    type: this.lifeform.lastFoundResource.type,
-                    x: this.lifeform.lastFoundResource.x,
-                    y: this.lifeform.lastFoundResource.y,
-                    z: this.lifeform.lastFoundResource.z,
-                    amount: this.lifeform.lastFoundResource.amount
-                }
-            );
-        }
-        
-        // 脅威検出時の警告
-        const threats = this.lifeform.detectThreats(lifeforms);
-        if (threats.length > 0) {
-            for (const threat of threats) {
-                this.queueMessage(
-                    this.MESSAGE_TYPES.THREAT_WARNING,
-                    {
-                        x: threat.lifeform.position.x,
-                        y: threat.lifeform.position.y,
-                        z: threat.lifeform.position.z,
-                        type: threat.lifeform.isPredator ? 'predator' : 'competitor',
-                        severity: threat.lifeform.energy
-                    }
+                const child = new AnaerobicBacteria(
+                    this.position.x + Math.cos(angle) * spreadDistance,
+                    this.position.y + Math.sin(angle) * spreadDistance,
+                    0
                 );
+                
+                child.decompositionEfficiency = Math.max(0.1, Math.min(1.0,
+                    this.decompositionEfficiency + (Math.random() - 0.5) * 0.2
+                ));
+                child.energy = energyCost / offspringCount * 0.8;
+                
+                anaerobicBacteria.push(child);
+            }
+            
+            return false;
+        }
+    }
+
+    // 初期の嫌気性バクテリアを生成
+    const initialAnaerobicBacteriaCount = Math.floor(width * 0.03);
+    for (let i = 0; i < initialAnaerobicBacteriaCount; i++) {
+        const x = Math.random() * width;
+        const y = height - 2 - Math.random() * 3;
+        anaerobicBacteria.push(new AnaerobicBacteria(x, y, 0));
+    }
+
+    // 初期の堆肥を生成
+    const initialCompostCount = Math.floor(width * 0.2); // 画面幅の20%の数の堆肥を生成
+    for (let i = 0; i < initialCompostCount; i++) {
+        const x = Math.random() * width;
+        const y = height - 1 - Math.random() * 3; // 底面付近に配置
+        const debris = new PlantDebris(x, y, 0, 0.2 + Math.random() * 0.3);
+        
+        // 堆肥化が完了した状態に設定
+        debris.isSettled = true;
+        debris.decompositionProgress = 1;
+        debris.isCompost = true;
+        debris.compostNutrientValue = 0.5 + Math.random() * 0.3;
+        debris.color = {
+            hue: 25,
+            saturation: 70,
+            lightness: 15,
+            opacity: 90
+        };
+        
+        plantDebris.push(debris);
+    }
+
+    // 初期化部分を修正（Oxygen, CO2オブジェクトの生成を削除）
+    // 初期酸素と二酸化炭素の分布を設定
+    function initializeGasDistribution() {
+        // 上部に酸素が多い分布
+        for (let x = 0; x < gridWidth; x++) {
+            for (let y = 0; y < gridHeight; y++) {
+                // 上部ほど酸素濃度が高い
+                const heightFactor = 1 - (y / gridHeight);
+                oxygenMap[x][y] = initialOxygenDensity * (0.5 + heightFactor * 0.5);
+                
+                // 下部ほど二酸化炭素濃度が高い
+                const depthFactor = y / gridHeight;
+                co2Map[x][y] = initialCO2Density * (0.5 + depthFactor * 0.5);
+                
+                // ランダム要素を加える
+                oxygenMap[x][y] += (Math.random() - 0.5) * 0.1;
+                co2Map[x][y] += (Math.random() - 0.5) * 0.1;
+                
+                // 範囲内に収める
+                oxygenMap[x][y] = Math.max(0, Math.min(maxOxygenLevel, oxygenMap[x][y]));
+                co2Map[x][y] = Math.max(0, Math.min(maxCO2Level, co2Map[x][y]));
             }
         }
     }
-}
+    
+    // 初期化
+    initializeGasDistribution();
 
-class MetaprogrammingSystem {
-    constructor(lifeform) {
-        this.lifeform = lifeform;
-        this.algorithms = {
-            resourceGathering: this.createDefaultResourceGatheringAlgorithm(),
-            predatorAvoidance: this.createDefaultPredatorAvoidanceAlgorithm(),
-            mating: this.createDefaultMatingAlgorithm(),
-            exploration: this.createDefaultExplorationAlgorithm()
-        };
+    // 指定した位置の酸素濃度を取得
+    function getOxygenAt(x, y) {
+        const gridX = Math.floor(x / gridSize);
+        const gridY = Math.floor(y / gridSize);
         
-        this.performanceMetrics = {
-            resourceGathering: { success: 0, attempts: 0 },
-            predatorAvoidance: { success: 0, attempts: 0 },
-            mating: { success: 0, attempts: 0 },
-            exploration: { success: 0, attempts: 0 }
-        };
-        
-        this.optimizationHistory = [];
-        this.currentOptimizationTarget = null;
-        this.optimizationCooldown = 0;
-        
-        // メタプログラミング能力
-        this.metaprogrammingAbility = lifeform.dna.metaprogrammingAbility || 0.3;
-        this.learningRate = lifeform.dna.learningRate || 0.2;
-        this.creativityFactor = lifeform.dna.creativity || 0.4;
+        if (gridX >= 0 && gridX < gridWidth && gridY >= 0 && gridY < gridHeight) {
+            return oxygenMap[gridX][gridY];
+        }
+        return 0;
     }
     
-    // デフォルトのリソース収集アルゴリズム
-    createDefaultResourceGatheringAlgorithm() {
-        return {
-            name: "基本リソース収集",
-            parameters: {
-                searchRadius: 10,
-                priorityThreshold: 0.5,
-                energyThreshold: 0.3,
-                explorationWeight: 0.5
-            },
-            code: function(lifeform, environment, parameters) {
-                // 基本的なリソース収集ロジック
-                const resources = lifeform.detectResources(environment);
-                if (resources.length === 0) {
-                    // リソースが見つからない場合は探索
-                    return {
-                        action: "explore",
-                        direction: {
-                            x: (Math.random() - 0.5) * parameters.explorationWeight,
-                            y: (Math.random() - 0.5) * parameters.explorationWeight,
-                            z: (Math.random() - 0.5) * parameters.explorationWeight * 0.5
+    // 指定した位置の二酸化炭素濃度を取得
+    function getCO2At(x, y) {
+        const gridX = Math.floor(x / gridSize);
+        const gridY = Math.floor(y / gridSize);
+        
+        if (gridX >= 0 && gridX < gridWidth && gridY >= 0 && gridY < gridHeight) {
+            return co2Map[gridX][gridY];
+        }
+        return 0;
+    }
+    
+    // 指定した位置の酸素濃度を変更
+    function changeOxygenAt(x, y, amount) {
+        const gridX = Math.floor(x / gridSize);
+        const gridY = Math.floor(y / gridSize);
+        
+        if (gridX >= 0 && gridX < gridWidth && gridY >= 0 && gridY < gridHeight) {
+            oxygenMap[gridX][gridY] = Math.max(0, Math.min(maxOxygenLevel, oxygenMap[gridX][gridY] + amount));
+            return true;
+        }
+        return false;
+    }
+    
+    // 指定した位置の二酸化炭素濃度を変更
+    function changeCO2At(x, y, amount) {
+        const gridX = Math.floor(x / gridSize);
+        const gridY = Math.floor(y / gridSize);
+        
+        if (gridX >= 0 && gridX < gridWidth && gridY >= 0 && gridY < gridHeight) {
+            co2Map[gridX][gridY] = Math.max(0, Math.min(maxCO2Level, co2Map[gridX][gridY] + amount));
+            return true;
+        }
+        return false;
+    }
+    
+    // 濃度の拡散処理
+    function diffuseGases() {
+        // 酸素の拡散
+        const newOxygenMap = Array(gridWidth).fill().map(() => Array(gridHeight).fill(0));
+        const newCO2Map = Array(gridWidth).fill().map(() => Array(gridHeight).fill(0));
+        
+        for (let x = 0; x < gridWidth; x++) {
+            for (let y = 0; y < gridHeight; y++) {
+                let oxygenSum = oxygenMap[x][y];
+                let co2Sum = co2Map[x][y];
+                let count = 1;
+                
+                // 隣接セルからの拡散
+                for (let dx = -1; dx <= 1; dx++) {
+                    for (let dy = -1; dy <= 1; dy++) {
+                        if (dx === 0 && dy === 0) continue;
+                        
+                        const nx = x + dx;
+                        const ny = y + dy;
+                        
+                        if (nx >= 0 && nx < gridWidth && ny >= 0 && ny < gridHeight) {
+                            // 拡散率を0.02から0.01に下げる
+                            oxygenSum += oxygenMap[nx][ny] * 0.01;
+                            co2Sum += co2Map[nx][ny] * 0.01;
+                            count++;
                         }
-                    };
-                }
-                
-                // 最も価値の高いリソースを選択
-                let bestResource = resources[0];
-                let bestValue = bestResource.amount / (bestResource.distance || 1);
-                
-                for (let i = 1; i < resources.length; i++) {
-                    const resource = resources[i];
-                    const value = resource.amount / (resource.distance || 1);
-                    if (value > bestValue) {
-                        bestValue = value;
-                        bestResource = resource;
                     }
                 }
                 
-                // リソースに向かう
-                const dx = bestResource.position.x - lifeform.position.x;
-                const dy = bestResource.position.y - lifeform.position.y;
-                const dz = bestResource.position.z - lifeform.position.z;
+                // 拡散後の新しい値を計算
+                newOxygenMap[x][y] = oxygenMap[x][y] * 0.99 + 
+                                    (oxygenSum - oxygenMap[x][y]) / count * 0.01;
                 
-                return {
-                    action: "move_to_resource",
-                    direction: {
-                        x: dx * 0.1,
-                        y: dy * 0.1,
-                        z: dz * 0.1
-                    },
-                    target: bestResource
-                };
-            }
-        };
-    }
-    
-    // デフォルトの捕食者回避アルゴリズム
-    createDefaultPredatorAvoidanceAlgorithm() {
-        return {
-            name: "基本捕食者回避",
-            parameters: {
-                detectionRadius: 15,
-                fleeMultiplier: 1.5,
-                groupingWeight: 0.5,
-                hidingWeight: 0.7
-            },
-            code: function(lifeform, environment, parameters, lifeforms) {
-                // 捕食者検出
-                const threats = lifeform.detectThreats(lifeforms || []);
-                if (threats.length === 0) {
-                    return { action: "no_threat" };
+                newCO2Map[x][y] = co2Map[x][y] * 0.99 + 
+                                 (co2Sum - co2Map[x][y]) / count * 0.01;
+                
+                // 自然減衰率を調整
+                newOxygenMap[x][y] *= 0.999;
+                newCO2Map[x][y] *= 0.999;
+                
+                // 浮力効果の調整（より緩やかに）
+                if (y > 0) {
+                    newOxygenMap[x][y-1] += newOxygenMap[x][y] * 0.005; // 0.01から0.005に減少
+                    newOxygenMap[x][y] *= 0.995;
                 }
                 
-                // 最も近い脅威を特定
-                let closestThreat = threats[0];
-                for (let i = 1; i < threats.length; i++) {
-                    if (threats[i].distance < closestThreat.distance) {
-                        closestThreat = threats[i];
-                    }
-                }
-                
-                // 脅威から逃げる方向を計算
-                const dx = lifeform.position.x - closestThreat.lifeform.position.x;
-                const dy = lifeform.position.y - closestThreat.lifeform.position.y;
-                const dz = lifeform.position.z - closestThreat.lifeform.position.z;
-                
-                // 距離に基づいて逃げる強さを調整
-                const distanceFactor = Math.max(0.1, Math.min(1.0, 1.0 / closestThreat.distance));
-                
-                return {
-                    action: "flee",
-                    direction: {
-                        x: dx * distanceFactor * parameters.fleeMultiplier,
-                        y: dy * distanceFactor * parameters.fleeMultiplier,
-                        z: dz * distanceFactor * parameters.fleeMultiplier
-                    },
-                    threat: closestThreat
-                };
-            }
-        };
-    }
-    
-    // デフォルトの交配アルゴリズム
-    createDefaultMatingAlgorithm() {
-        return {
-            name: "基本交配戦略",
-            parameters: {
-                searchRadius: 12,
-                energyThreshold: 0.7,
-                compatibilityThreshold: 0.6,
-                approachSpeed: 0.5
-            },
-            code: function(lifeform, environment, parameters, lifeforms) {
-                // エネルギーが閾値未満なら交配しない
-                if (lifeform.energy < parameters.energyThreshold) {
-                    return { action: "conserve_energy" };
-                }
-                
-                // 互換性のある仲間を探す
-                const companions = lifeform.findCompatibleCompanions(lifeforms || []);
-                if (companions.length === 0) {
-                    return { action: "search_mate" };
-                }
-                
-                // 最も互換性の高い相手を選択
-                let bestMate = null;
-                let bestCompatibility = parameters.compatibilityThreshold;
-                
-                for (const companion of companions) {
-                    // 遺伝的距離に基づく互換性を計算
-                    const geneticDistance = lifeform.calculateGeneticDistance(companion.lifeform);
-                    const compatibility = 1.0 - geneticDistance;
-                    
-                    if (compatibility > bestCompatibility && companion.lifeform.energy > parameters.energyThreshold) {
-                        bestMate = companion;
-                        bestCompatibility = compatibility;
-                    }
-                }
-                
-                if (!bestMate) {
-                    return { action: "search_mate" };
-                }
-                
-                // 選択した相手に近づく
-                const dx = bestMate.lifeform.position.x - lifeform.position.x;
-                const dy = bestMate.lifeform.position.y - lifeform.position.y;
-                const dz = bestMate.lifeform.position.z - lifeform.position.z;
-                
-                // 十分近ければ交配を試みる
-                if (bestMate.distance < 2.0) {
-                    return {
-                        action: "attempt_mating",
-                        target: bestMate.lifeform
-                    };
-                }
-                
-                return {
-                    action: "approach_mate",
-                    direction: {
-                        x: dx * parameters.approachSpeed,
-                        y: dy * parameters.approachSpeed,
-                        z: dz * parameters.approachSpeed
-                    },
-                    target: bestMate.lifeform
-                };
-            }
-        };
-    }
-    
-    // デフォルトの探索アルゴリズム
-    createDefaultExplorationAlgorithm() {
-        return {
-            name: "基本探索戦略",
-            parameters: {
-                explorationRadius: 20,
-                changeDirectionProbability: 0.05,
-                depthExplorationWeight: 0.3,
-                curiosityFactor: 0.5
-            },
-            code: function(lifeform, environment, parameters) {
-                // 方向転換の判定
-                if (!lifeform._explorationDirection || Math.random() < parameters.changeDirectionProbability) {
-                    // 新しい探索方向を設定
-                    const angle = Math.random() * Math.PI * 2;
-                    const verticalAngle = (Math.random() - 0.5) * Math.PI * parameters.depthExplorationWeight;
-                    
-                    lifeform._explorationDirection = {
-                        x: Math.cos(angle) * parameters.curiosityFactor,
-                        y: Math.sin(angle) * parameters.curiosityFactor,
-                        z: Math.sin(verticalAngle) * parameters.curiosityFactor * 0.5
-                    };
-                    
-                    lifeform._explorationDuration = Math.floor(Math.random() * 50) + 10;
-                } else {
-                    // 探索継続時間を減少
-                    lifeform._explorationDuration--;
-                    if (lifeform._explorationDuration <= 0) {
-                        lifeform._explorationDirection = null;
-                    }
-                }
-                
-                // 環境の境界に近づいたら方向を調整
-                const margin = 5;
-                if (lifeform.position.x < margin || lifeform.position.x > width - margin ||
-                    lifeform.position.y < margin || lifeform.position.y > height - margin ||
-                    lifeform.position.z < -10 + margin || lifeform.position.z > 10 - margin) {
-                    
-                    // 中心方向に向かう成分を追加
-                    const centerX = width / 2;
-                    const centerY = height / 2;
-                    const centerZ = 0;
-                    
-                    const toCenterX = centerX - lifeform.position.x;
-                    const toCenterY = centerY - lifeform.position.y;
-                    const toCenterZ = centerZ - lifeform.position.z;
-                    
-                    const centeringFactor = 0.2;
-                    
-                    if (lifeform._explorationDirection) {
-                        lifeform._explorationDirection.x += toCenterX * centeringFactor;
-                        lifeform._explorationDirection.y += toCenterY * centeringFactor;
-                        lifeform._explorationDirection.z += toCenterZ * centeringFactor;
-                    }
-                }
-                
-                return {
-                    action: "explore",
-                    direction: lifeform._explorationDirection || {
-                        x: (Math.random() - 0.5) * parameters.curiosityFactor,
-                        y: (Math.random() - 0.5) * parameters.curiosityFactor,
-                        z: (Math.random() - 0.5) * parameters.curiosityFactor * 0.5
-                    }
-                };
-            }
-        };
-    }
-    
-    // アルゴリズムの実行
-    executeAlgorithm(type, environment, lifeforms) {
-        const algorithm = this.algorithms[type];
-        if (!algorithm) return null;
-        
-        try {
-            // アルゴリズムの実行を試みる
-            this.performanceMetrics[type].attempts++;
-            const result = algorithm.code(this.lifeform, environment, algorithm.parameters, lifeforms);
-            return result;
-        } catch (error) {
-            // エラーが発生した場合は記録
-            console.error(`Algorithm execution error (${type}):`, error);
-            return null;
-        }
-    }
-    
-    // アルゴリズムの最適化
-    optimizeAlgorithm(type) {
-        const algorithm = this.algorithms[type];
-        if (!algorithm) return false;
-        
-        // 最適化の成功率はメタプログラミング能力に依存
-        const optimizationChance = this.metaprogrammingAbility * 0.5;
-        if (Math.random() > optimizationChance) return false;
-        
-        // パフォーマンスメトリクスを取得
-        const metrics = this.performanceMetrics[type];
-        if (metrics.attempts < 10) return false; // 十分なデータがない
-        
-        const successRate = metrics.success / metrics.attempts;
-        
-        // パラメータの最適化
-        const paramKeys = Object.keys(algorithm.parameters);
-        if (paramKeys.length === 0) return false;
-        
-        // ランダムにパラメータを選択して調整
-        const paramToOptimize = paramKeys[Math.floor(Math.random() * paramKeys.length)];
-        const currentValue = algorithm.parameters[paramToOptimize];
-        
-        // 成功率に基づいて調整方向を決定
-        const adjustmentDirection = successRate < 0.5 ? -1 : 1;
-        
-        // 創造性に基づいて調整量を決定
-        const adjustmentAmount = this.creativityFactor * (Math.random() * 0.2 + 0.05);
-        
-        // パラメータを調整
-        const newValue = currentValue * (1 + adjustmentDirection * adjustmentAmount);
-        
-        // 調整を記録
-        this.optimizationHistory.push({
-            time: Date.now(),
-            algorithm: type,
-            parameter: paramToOptimize,
-            oldValue: currentValue,
-            newValue: newValue,
-            successRate: successRate
-        });
-        
-        // パラメータを更新
-        algorithm.parameters[paramToOptimize] = newValue;
-        
-        // メトリクスをリセット
-        metrics.success = 0;
-        metrics.attempts = 0;
-        
-        return true;
-    }
-    
-    // 行動結果のフィードバック
-    provideFeedback(type, success) {
-        if (!this.performanceMetrics[type]) return;
-        
-        if (success) {
-            this.performanceMetrics[type].success++;
-        }
-    }
-    
-    // 新しいアルゴリズムの生成（創造的プロセス）
-    createNewAlgorithm(baseType) {
-        // 創造性が低い場合は失敗
-        if (Math.random() > this.creativityFactor) return null;
-        
-        const baseAlgorithm = this.algorithms[baseType];
-        if (!baseAlgorithm) return null;
-        
-        // 新しいアルゴリズム名
-        const newName = `進化型${baseAlgorithm.name}`;
-        
-        // パラメータの変異
-        const newParameters = {};
-        for (const [key, value] of Object.entries(baseAlgorithm.parameters)) {
-            // 各パラメータをランダムに変異
-            newParameters[key] = value * (1 + (Math.random() - 0.5) * this.creativityFactor);
-        }
-        
-        // 新しいパラメータの追加（低確率）
-        if (Math.random() < this.creativityFactor * 0.3) {
-            const newParamName = `adaptive_${Math.floor(Math.random() * 1000)}`;
-            newParameters[newParamName] = Math.random();
-        }
-        
-        // コードの変異（実際には難しいので、ここではパラメータ参照方法を変更）
-        const newCode = function(lifeform, environment, parameters, lifeforms) {
-            // 基本的には元のコードを実行
-            const result = baseAlgorithm.code(lifeform, environment, parameters, lifeforms);
-            
-            // 結果に適応的な修正を加える
-            if (result && result.direction) {
-                // 環境状態に基づく適応
-                const environmentalFactor = environment?.systemState?.cpuLoad || 0.5;
-                
-                // 方向の微調整
-                result.direction.x *= 1 + (environmentalFactor - 0.5) * 0.2;
-                result.direction.y *= 1 + (environmentalFactor - 0.5) * 0.2;
-                
-                // エネルギー状態に基づく調整
-                if (lifeform.energy < 0.3) {
-                    // 省エネモード
-                    result.direction.x *= 0.8;
-                    result.direction.y *= 0.8;
-                    result.direction.z *= 0.8;
-                }
-            }
-            
-            return result;
-        };
-        
-        // 新しいアルゴリズムを返す
-        return {
-            name: newName,
-            parameters: newParameters,
-            code: newCode,
-            parent: baseType,
-            creationTime: Date.now()
-        };
-    }
-    
-    // システム全体の更新
-    update(environment, lifeforms) {
-        // 最適化クールダウンの更新
-        if (this.optimizationCooldown > 0) {
-            this.optimizationCooldown--;
-        }
-        
-        // 定期的な最適化（低確率）
-        if (this.optimizationCooldown === 0 && Math.random() < 0.05) {
-            // 最適化するアルゴリズムをランダムに選択
-            const algorithmTypes = Object.keys(this.algorithms);
-            const typeToOptimize = algorithmTypes[Math.floor(Math.random() * algorithmTypes.length)];
-            
-            // 最適化を試みる
-            const optimized = this.optimizeAlgorithm(typeToOptimize);
-            
-            if (optimized) {
-                // 最適化に成功したらクールダウンを設定
-                this.optimizationCooldown = 50;
-                this.currentOptimizationTarget = typeToOptimize;
-            }
-        }
-        
-        // 新しいアルゴリズムの創造（非常に低確率）
-        if (Math.random() < 0.01 * this.creativityFactor) {
-            const algorithmTypes = Object.keys(this.algorithms);
-            const baseType = algorithmTypes[Math.floor(Math.random() * algorithmTypes.length)];
-            
-            const newAlgorithm = this.createNewAlgorithm(baseType);
-            if (newAlgorithm) {
-                // 新しいアルゴリズムを採用するかどうか決定
-                const adoptionChance = this.metaprogrammingAbility * 0.3;
-                if (Math.random() < adoptionChance) {
-                    // 新しいアルゴリズムを採用
-                    this.algorithms[baseType] = newAlgorithm;
-                    
-                    // メトリクスをリセット
-                    this.performanceMetrics[baseType].success = 0;
-                    this.performanceMetrics[baseType].attempts = 0;
+                if (y < gridHeight - 1) {
+                    newCO2Map[x][y+1] += newCO2Map[x][y] * 0.005; // 0.01から0.005に減少
+                    newCO2Map[x][y] *= 0.995;
                 }
             }
         }
         
-        // 状況に応じたアルゴリズム選択
-        let selectedAction = null;
-        
-        // 脅威検出
-        const threats = this.lifeform.detectThreats(lifeforms);
-        if (threats.length > 0) {
-            // 捕食者回避を優先
-            selectedAction = this.executeAlgorithm('predatorAvoidance', environment, lifeforms);
-            if (selectedAction && selectedAction.action !== 'no_threat') {
-                return selectedAction;
+        // 新しい値で更新
+        for (let x = 0; x < gridWidth; x++) {
+            for (let y = 0; y < gridHeight; y++) {
+                oxygenMap[x][y] = newOxygenMap[x][y];
+                co2Map[x][y] = newCO2Map[x][y];
             }
         }
-        
-        // エネルギー状態に基づく行動選択
-        if (this.lifeform.energy < 0.3) {
-            // エネルギーが低い場合はリソース収集を優先
-            selectedAction = this.executeAlgorithm('resourceGathering', environment, lifeforms);
-            if (selectedAction && selectedAction.action === 'move_to_resource') {
-                return selectedAction;
-            }
-        } else if (this.lifeform.energy > 0.7) {
-            // エネルギーが十分ある場合は交配を検討
-            selectedAction = this.executeAlgorithm('mating', environment, lifeforms);
-            if (selectedAction && (selectedAction.action === 'approach_mate' || selectedAction.action === 'attempt_mating')) {
-                return selectedAction;
-            }
-        }
-        
-        // デフォルトは探索
-        return this.executeAlgorithm('exploration', environment, lifeforms);
     }
-    
-    // アルゴリズムの性能分析
-    analyzePerformance() {
-        const analysis = {};
-        
-        for (const [type, metrics] of Object.entries(this.performanceMetrics)) {
-            if (metrics.attempts === 0) {
-                analysis[type] = { successRate: 0, confidence: 0 };
-            } else {
-                const successRate = metrics.success / metrics.attempts;
-                const confidence = Math.min(1.0, metrics.attempts / 20); // サンプル数に基づく信頼度
-                
-                analysis[type] = { successRate, confidence };
-            }
-        }
-        
-        return analysis;
-    }
-} 
 
+    // 初期植物の死骸を生成
+    for (let i = 0; i < initialPlantDebrisCount; i++) {
+        const x = Math.random() * width;
+        const y = height - Math.random() * 20; // 底部に配置
+        const debris = new PlantDebris(
+            x,
+            y,
+            0,
+            0.2 + Math.random() * 0.3
+        );
+        plantDebris.push(debris);
+    }
+
+    // 初期化
+    initializeGasDistribution();
+
+    // 初期浄化バクテリアの生成
+    for (let i = 0; i < initialBacteriaCount; i++) {
+        const x = Math.random() * width;
+        const y = Math.random() * height * 0.8; // 上部80%に配置
+        const bacterium = new PurifierBacteria(
+            x,
+            y,
+            0
+        );
+        bacteria.push(bacterium);
+    }
+
+    // 初期嫌気性バクテリアの生成
+    for (let i = 0; i < initialBacteriaCount / 2; i++) {
+        const x = Math.random() * width;
+        const y = height - Math.random() * 20; // 底部に配置
+        const bacterium = new AnaerobicBacteria(
+            x,
+            y,
+            0
+        );
+        anaerobicBacteria.push(bacterium);
+    }
+}); 
