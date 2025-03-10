@@ -1,14 +1,14 @@
 document.addEventListener('DOMContentLoaded', () => {
     const canvas = document.getElementById('canvas');
     // 幅と高さの比率を1:1に近づける（正方形のグリッドになるように）
-    const width = 320;
-    const height = 160;
+    const width = 240;
+    const height = 120;
     
     // ASCII文字のセット（生命体の状態を表現）
     const asciiChars = '█▓▒░*+∙';
     
     // ライフシミュレーションのパラメータ
-    const initialLifeCount = 10;  // 10から5に減少
+    const initialLifeCount = 100;  // 10から5に減少
     const maxLifeforms = 1000;    // 1000から500に減少
     const energyDecayRate = 0.003;  // 0.001から0.003に増加
     const reproductionThreshold = 0.8;  // 0.6から0.8に増加
@@ -18,8 +18,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const maxAge = 500;  // 1000から800に減少
     
     // 死骸のパラメータ
-    const initialPlantDebrisCount = Math.floor(width * height * 0.05); // 画面の5%の量の初期植物死骸
-    const initialLifeformDebrisCount = Math.floor(width * height * 0.03); // 画面の3%の量の初期生命体死骸
+    const initialPlantDebrisCount = Math.floor(width * height * 0.00); // 画面の5%の量の初期植物死骸
+    const initialLifeformDebrisCount = Math.floor(width * height * 0.01); // 画面の3%の量の初期生命体死骸
     
     // 浄化バクテリアのパラメータ
     const initialBacteriaCount = Math.floor(width * 0.25); // 画面の25%に増加
@@ -226,7 +226,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         // 他の生命体との相互作用（捕食を含む）
-        interact(lifeforms, toxicMatters) {
+        interact(lifeforms, toxicMatters, anaerobicBacteria) {
             let steering = { x: 0, y: 0, z: 0 };
             let count = 0;
             
@@ -397,6 +397,48 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             
+            // 好気性バクテリアとの相互作用
+            if (bacteria) {
+                for (const bacterium of bacteria) {
+                    if (!bacterium || bacterium.isDead) continue;
+                    
+                    const dx = bacterium.position.x - this.position.x;
+                    const dy = bacterium.position.y - this.position.y;
+                    const dz = bacterium.position.z - this.position.z;
+                    const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                    
+                    if (distance < perceptionRadius) {
+                        // 捕食可能な距離内にいる場合
+                        if (distance < predationRange && this.canPredate({ dna: { size: 0.5, toxicity: 0 }, energy: 0.3 })) {
+                            // バクテリアを捕食し、エネルギーを得る
+                            this.energy += predationEnergyGain * 0.3;  // バクテリアからのエネルギー獲得は通常の30%
+                            bacterium.isDead = true;
+                        }
+                    }
+                }
+            }
+
+            // 嫌気性バクテリアとの相互作用
+            if (anaerobicBacteria) {  // 捕食性の条件を削除
+                for (const bacteria of anaerobicBacteria) {
+                    if (!bacteria || bacteria.isDead) continue;
+                    
+                    const dx = bacteria.position.x - this.position.x;
+                    const dy = bacteria.position.y - this.position.y;
+                    const dz = bacteria.position.z - this.position.z;
+                    const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                    
+                    if (distance < perceptionRadius) {
+                        // 捕食可能な距離内にいる場合
+                        if (distance < predationRange && this.canPredate({ dna: { size: 0.5, toxicity: 0 }, energy: 0.3 })) {
+                            // バクテリアを捕食し、エネルギーを得る
+                            this.energy += predationEnergyGain * 0.3;  // バクテリアからのエネルギー獲得は通常の30%
+                            bacteria.isDead = true;
+                        }
+                    }
+                }
+            }
+            
             return steering;
         }
         
@@ -489,7 +531,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         // 生命体の更新
-        update(lifeforms, foods, toxicMatters) {
+        update(lifeforms, foods, toxicMatters, anaerobicBacteria) {  // anaerobicBacteriaパラメータを追加
             if (this.isDead) return;
             
             // 年齢を増加
@@ -554,7 +596,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const foodSeeking = this.seekFood(foods, bacteria);
             
             // 他の生命体との相互作用
-            const interaction = this.interact(lifeforms, toxicMatters);
+            const interaction = this.interact(lifeforms, toxicMatters, anaerobicBacteria);  // anaerobicBacteriaを追加
             
             // 境界チェックを更新
             const boundaries = this.checkBoundaries();
@@ -1074,10 +1116,13 @@ document.addEventListener('DOMContentLoaded', () => {
     class ToxicMatter {
         constructor(x, y, z, energy) {
             this.position = { x, y, z };
-            this.velocity = { x: 0, y: 0, z: 0 };
+            this.velocity = { x: 0, y: 0.3, z: 0 };
+            this.acceleration = { x: 0, y: 0, z: 0 };
             this.energy = energy;
             this.toxicity = 0.8;
             this.mass = 0.8;
+            this.buoyancy = 0.15; // 浮力を低下（0.15のまま）
+            this.dragCoefficient = 0.15;
             this.age = 0;
             this.maxAge = 2000;
             this.isSettled = false;
@@ -1085,117 +1130,287 @@ document.addEventListener('DOMContentLoaded', () => {
             this.decompositionStage = 0;
             this.decompositionProgress = 0;
             this.bacteriaCount = 0;
+            this.stackHeight = 0;
             
-            // 色の初期設定
-            this.color = {
-                hue: 30,
-                saturation: 60,
-                lightness: 30,
-                opacity: 70
-            };
+            this.targetDepth = height - 1;
+            this.maxLocalDensity = 3;
+            this.upwardMoveSpeed = 0.2; // 上方向への移動速度を低下（0.5から0.2に）
+            this.layerHeight = 2;
+            this.maxToxicDensity = 4;
+            this.decompositionRate = 0.005;
+            this.groundFriction = 0.95; // 地面との摩擦係数を追加
+        }
+
+        // 未分解毒素の密度をチェック
+        checkToxicDensity(toxicMatters) {
+            let localCount = 0;
+            const checkRadius = 3;
+            const currentLayer = Math.floor(this.position.y / this.layerHeight);
+            
+            for (const matter of toxicMatters) {
+                if (matter === this || matter.decompositionStage !== 0) continue;
+                
+                const matterLayer = Math.floor(matter.position.y / this.layerHeight);
+                if (matterLayer !== currentLayer) continue;
+                
+                const dx = this.position.x - matter.position.x;
+                const dy = this.position.y - matter.position.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance < checkRadius) {
+                    localCount++;
+                }
+            }
+            
+            return localCount;
+        }
+
+        // 分解済み毒素の密度をチェックする関数を追加
+        checkDecomposedDensity(toxicMatters) {
+            let localCount = 0;
+            const checkRadius = 3;
+            const currentLayer = Math.floor(this.position.y / this.layerHeight);
+            
+            for (const matter of toxicMatters) {
+                if (matter === this || matter.decompositionStage < 2) continue;
+                
+                const matterLayer = Math.floor(matter.position.y / this.layerHeight);
+                if (matterLayer !== currentLayer) continue;
+                
+                const dx = this.position.x - matter.position.x;
+                const dy = this.position.y - matter.position.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance < checkRadius) {
+                    localCount++;
+                }
+            }
+            
+            return localCount;
         }
 
         applyPhysics() {
-            // 常に下向きの力を適用
-            const sinkRate = 0.05;
+            if (this.isSettled) {
+                // 定着後は横方向の動きのみ減衰
+                this.velocity.x *= this.groundFriction;
+                this.velocity.y = 0;
+                return;
+            }
+
+            // 重力の影響
+            const gravity = 0.05;
+            this.acceleration.y += gravity;
+
+            // 浮力の影響（分解段階に応じて変化）
+            let currentBuoyancy = this.buoyancy;
+            if (this.decompositionStage > 0) {
+                currentBuoyancy *= Math.max(0.1, 1 - (this.decompositionProgress * 0.5));
+            }
             
-            // 定着していない場合は沈む
-            if (!this.isSettled) {
-                this.position.y += sinkRate;
+            // 水面付近での特殊な浮力処理
+            const surfaceMargin = 3;
+            if (this.position.y < surfaceMargin) {
+                const surfaceFactor = 1 - (this.position.y / surfaceMargin);
+                currentBuoyancy *= (1 - surfaceFactor * 0.7); // 水面付近で浮力を70%まで減少
+            }
+            
+            const buoyancyForce = -gravity * currentBuoyancy;
+            this.acceleration.y += buoyancyForce;
+
+            // 抵抗力
+            const dragForce = {
+                x: -this.velocity.x * this.dragCoefficient,
+                y: -this.velocity.y * this.dragCoefficient
+            };
+            this.acceleration.x += dragForce.x;
+            this.acceleration.y += dragForce.y;
+
+            // 底面との衝突判定と堆積処理
+            if (this.position.y >= height - 1) {
+                this.position.y = height - 1;
+                this.velocity.y = 0;
+                this.acceleration.y = 0;
                 
-                // 水平方向の動きを減衰
-                this.velocity.x *= 0.95;
-                
-                // 水平方向の位置更新
-                this.position.x += this.velocity.x;
-                
-                // 境界チェック
-                if (this.position.x < 0) {
-                    this.position.x = 0;
-                    this.velocity.x = 0;
-                } else if (this.position.x >= width) {
-                    this.position.x = width - 1;
-                    this.velocity.x = 0;
-                }
-                
-                // 底面との衝突判定
-                if (this.position.y >= height - 1) {
-                    this.position.y = height - 1;
+                // 堆積判定の改善
+                const horizontalSpeed = Math.abs(this.velocity.x);
+                if (horizontalSpeed < 0.01) {
                     this.settlingTime++;
-                    
-                    if (this.settlingTime > 10) {
+                    // 分解段階に応じて定着時間を調整
+                    const requiredSettlingTime = this.decompositionStage === 0 ? 30 : 20;
+                    if (this.settlingTime > requiredSettlingTime) {
                         this.isSettled = true;
+                        this.velocity.x = 0;
                     }
+                } else {
+                    // 動きが大きい場合は定着カウントをリセット
+                    this.settlingTime = Math.max(0, this.settlingTime - 1);
                 }
+                
+                // 地面との摩擦
+                this.velocity.x *= this.groundFriction;
+            }
+
+            // 水面付近での特殊処理
+            const waterSurfaceY = 2;
+            if (this.position.y <= waterSurfaceY) {
+                // 水面での張力効果
+                const surfaceTension = 0.02;
+                this.acceleration.y += surfaceTension;
+                
+                // 分解段階が進んでいる場合は水面下に沈みやすく
+                if (this.decompositionStage > 0) {
+                    this.acceleration.y += gravity * 0.5;
+                }
+                
+                // 水面での横方向の動きを制限
+                this.velocity.x *= 0.95;
+            }
+
+            // 側面との衝突判定（より自然な反発）
+            if (this.position.x < 0) {
+                this.position.x = 0;
+                this.velocity.x = Math.abs(this.velocity.x) * 0.5;
+                // 壁との摩擦を考慮
+                this.velocity.y *= 0.9;
+            } else if (this.position.x >= width) {
+                this.position.x = width - 1;
+                this.velocity.x = -Math.abs(this.velocity.x) * 0.5;
+                // 壁との摩擦を考慮
+                this.velocity.y *= 0.9;
             }
         }
 
         update(plants, toxicMatters) {
             this.age++;
             
-            // 物理演算の適用
-            this.applyPhysics();
-            
-            // バクテリアによる分解処理
-            if (this.bacteriaCount > 0) {
+            if (!this.isSettled) {
+                this.applyPhysics();
+
+                // 速度の更新（より制限的に）
+                this.velocity.x = Math.max(-0.5, Math.min(0.5, this.velocity.x + this.acceleration.x));
+                this.velocity.y = Math.max(-0.8, Math.min(0.8, this.velocity.y + this.acceleration.y));
+                
+                this.position.x += this.velocity.x;
+                this.position.y += this.velocity.y;
+
+                // 加速度をリセット
+                this.acceleration.x = 0;
+                this.acceleration.y = 0;
+            } else {
+                // 定着後の処理
+                if (this.decompositionStage > 0) {
+                    // 分解が進んだ物質は徐々に沈降
+                    const sinkRate = 0.001 * this.decompositionProgress;
+                    this.position.y = Math.min(height - 1, this.position.y + sinkRate);
+                }
+
+                // 局所密度チェックと位置調整（より穏やかに）
+                const localCount = this.checkLocalDensity(toxicMatters);
+                if (localCount > this.maxLocalDensity) {
+                    // 横方向へのゆっくりとした移動
+                    this.position.x += (Math.random() - 0.5) * 0.1;
+                    this.position.x = Math.max(0, Math.min(width - 1, this.position.x));
+                }
+            }
+
+            // バクテリアがいる場合のみ分解が進行
+            if (this.settlingTime > 100 && this.bacteriaCount > 0) {
                 if (this.decompositionStage === 0) {
                     this.decompositionStage = 1;
                 }
                 
                 if (this.decompositionStage === 1) {
-                    // 分解の進行
-                    const decompositionRate = 0.005 * this.bacteriaCount;
+                    // バクテリアの数に応じて分解速度が変化（より速く）
+                    const decompositionRate = this.decompositionRate * this.bacteriaCount;
                     this.decompositionProgress += decompositionRate;
                     this.toxicity = Math.max(0, this.toxicity - decompositionRate * 3);
                     
-                    // 色の変更（より暗く、より不透明に）
-                    this.color = {
-                        hue: 30,
-                        saturation: Math.max(20, 60 - this.decompositionProgress * 40),
-                        lightness: Math.max(10, 30 - this.decompositionProgress * 20),
-                        opacity: Math.min(100, 70 + this.decompositionProgress * 30)
-                    };
-                    
-                    // 分解が進むほど沈む速度を上げる
-                    const additionalSinkRate = 0.02 * this.decompositionProgress;
-                    this.position.y = Math.min(height - 1, this.position.y + additionalSinkRate);
-                    
-                    // 分解完了チェック
                     if (this.decompositionProgress >= 1) {
                         this.decompositionStage = 2;
+                        // 完全分解時に確実に植物を生成
+                        const newPlant = new Plant(
+                            this.position.x + (Math.random() - 0.5) * 2,
+                            this.position.y,
+                            0,
+                            this.energy * 0.4
+                        );
+                        newPlant.size = 0.05 + Math.random() * 0.1;
+                        newPlant.maxSize = 0.2 + Math.random() * 0.3;
+                        plants.push(newPlant);
+                        return true;
+                    }
+                }
+            }
+
+            // 完全に分解された場合、周囲の堆積物の濃度をチェック
+            if (this.decompositionStage === 2) {
+                const localCount = this.checkDecomposedDensity(toxicMatters);
+                const maxLocalCount = 5; // 最大堆積数
+                
+                if (localCount > maxLocalCount) {
+                    // 堆積が多い場合、上に移動
+                    const newY = this.position.y - 1;
+                    if (newY > 0) { // 画面上端を超えないように
+                        this.position.y = newY;
+                        this.stackHeight++;
                     }
                 }
             }
             
-            // 完全分解後の処理
+            // 堆肥化完了後、一定確率で植物を生成
+            if (this.decompositionStage === 2 && Math.random() < 0.01 && this.position.y > height * 0.7) {
+                const newPlant = new Plant(
+                    this.position.x + (Math.random() - 0.5) * 2,
+                    Math.min(this.position.y, height - 1), // 底面より下には行かない
+                    0,
+                    this.energy * 0.4
+                );
+                newPlant.size = 0.05 + Math.random() * 0.1;
+                newPlant.maxSize = 0.2 + Math.random() * 0.3;
+                plants.push(newPlant);
+                return true;
+            }
+
+            // バクテリアカウントをリセット（毎フレーム）
+            this.bacteriaCount = 0;
+
+            // 堆積物の密度チェックと位置調整
             if (this.decompositionStage === 2) {
-                // 常に底に向かって沈む
-                const finalSinkRate = 0.03;
-                this.position.y = Math.min(height - 1, this.position.y + finalSinkRate);
+                const { count, lowestY } = this.checkLocalDensity(toxicMatters);
                 
-                // 底部での植物生成
-                if (this.position.y >= height - 1 && Math.random() < 0.01) {
-                    const newPlant = new Plant(
-                        this.position.x + (Math.random() - 0.5) * 2,
-                        height - 1,
-                        0,
-                        this.energy * 0.4
-                    );
-                    newPlant.size = 0.05 + Math.random() * 0.1;
-                    newPlant.maxSize = 0.2 + Math.random() * 0.3;
-                    plants.push(newPlant);
-                    return true;
+                if (count > this.maxLocalDensity) {
+                    // 徐々に上昇（急激な変化を防ぐ）
+                    const targetY = lowestY - 2;
+                    if (this.position.y > targetY) {
+                        this.position.y -= this.upwardMoveSpeed;
+                        this.stackHeight = Math.floor((height - this.position.y) / 2);
+                    }
+                }
+            }
+
+            return this.age >= this.maxAge;
+        }
+
+        checkLocalDensity(toxicMatters) {
+            let localCount = 0;
+            const checkRadius = 3;
+            let lowestY = this.position.y;
+            
+            for (const matter of toxicMatters) {
+                if (matter === this || matter.decompositionStage !== 2) continue;
+                
+                const dx = this.position.x - matter.position.x;
+                const dy = this.position.y - matter.position.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance < checkRadius) {
+                    localCount++;
+                    lowestY = Math.max(lowestY, matter.position.y);
                 }
             }
             
-            // バクテリアカウントをリセット
-            this.bacteriaCount = 0;
-            
-            // 寿命チェック
-            return this.age >= this.maxAge;
+            return { count: localCount, lowestY: lowestY };
         }
-        
-        // 他のToxicMatterクラスのメソッドは必要に応じて追加
     }
     
     // 浄化バクテリアクラスを追加
@@ -1491,11 +1706,18 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!this.isSettled) {
                 this.applyPhysics();
                 
+                // 速度と位置の更新
                 this.velocity.x += this.acceleration.x;
                 this.velocity.y += this.acceleration.y;
-                
                 this.position.x += this.velocity.x;
                 this.position.y += this.velocity.y;
+
+                // 底面に到達したら定着
+                if (this.position.y >= height - 2) {
+                    this.position.y = height - 2;
+                    this.isSettled = true;
+                    this.velocity = { x: 0, y: 0, z: 0 };
+                }
                 
                 return false;
             }
@@ -1539,19 +1761,18 @@ document.addEventListener('DOMContentLoaded', () => {
                         lightness: 15,
                         opacity: 90
                     };
-
-                    // 堆肥化完了時に一定確率で植物を生成
-                    if (Math.random() < 0.3 && this.position.y > height * 0.7) {
+                    
+                    // 一定確率で新しい植物を生成（位置を調整）
+                    if (Math.random() < 0.3) {
                         const newPlant = new Plant(
                             this.position.x + (Math.random() - 0.5) * 2,
-                            Math.min(this.position.y, height - 1), // 底面より下には行かない
+                            height - 1, // 必ず底面に生成
                             0,
                             0.3
                         );
                         newPlant.size = 0.05 + Math.random() * 0.1;
                         newPlant.maxSize = 0.2 + Math.random() * 0.3;
                         plants.push(newPlant);
-                        return true;
                     }
                 }
             }
@@ -1559,16 +1780,21 @@ document.addEventListener('DOMContentLoaded', () => {
             // カウントをリセット
             this.anaerobicBacteriaCount = 0;
 
-            // 堆積物の密度チェックと位置調整
+            // 堆積物の密度チェックと位置調整（より制限的に）
             if (this.isCompost) {
                 const localCompostCount = this.checkCompostDensity(plantDebris);
                 if (localCompostCount > this.maxLocalDensity) {
-                    const newY = this.position.y - this.upwardMoveSpeed;
-                    if (newY > 0) {
+                    // より制限的な上方移動
+                    const newY = this.position.y - 0.05; // 移動速度をさらに減少
+                    if (newY >= height - 3) { // 底面からの最大移動範囲を制限
                         this.position.y = newY;
-                        this.stackHeight++;
+                    } else {
+                        this.position.y = height - 3; // 最大移動高度を制限
                     }
                 }
+            } else {
+                // 非堆肥状態では底面に留まる
+                this.position.y = height - 1;
             }
 
             return this.age >= this.maxAge;
@@ -1729,7 +1955,7 @@ document.addEventListener('DOMContentLoaded', () => {
         for (let i = lifeforms.length - 1; i >= 0; i--) {
             if (!lifeforms[i]) continue; // undefinedチェックを追加
             
-            lifeforms[i].update(lifeforms || [], plants || [], toxicMatters || []);
+            lifeforms[i].update(lifeforms || [], plants || [], toxicMatters || [], anaerobicBacteria);  // anaerobicBacteriaを追加
             
             if (lifeforms[i].isDead) {
                 // 死亡時、その場所に毒性物質を生成
@@ -2071,7 +2297,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
             setTimeout(() => {
                 requestAnimationFrame(render);
-            }, 1000 / 60);    }
+            }, 1000 / 60);
+    }
     
     // アニメーション開始
     render();
