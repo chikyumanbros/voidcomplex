@@ -1,14 +1,14 @@
 document.addEventListener('DOMContentLoaded', () => {
     const canvas = document.getElementById('canvas');
     // 幅と高さの比率を1:1に近づける（正方形のグリッドになるように）
-    const width = 240;
-    const height = 120;
+    const width = 250;
+    const height = 140;
     
     // ASCII文字のセット（生命体の状態を表現）
     const asciiChars = '█▓▒░*+∙';
     
     // ライフシミュレーションのパラメータ
-    const initialLifeCount = 100;  // 10から5に減少
+    const initialLifeCount = 50;  // 10から5に減少
     const maxLifeforms = 1000;    // 1000から500に減少
     const energyDecayRate = 0.003;  // 0.001から0.003に増加
     const reproductionThreshold = 0.8;  // 0.6から0.8に増加
@@ -57,14 +57,14 @@ document.addEventListener('DOMContentLoaded', () => {
         constructor(x, y, z, energy, dna = null) {
             // 位置を指定された場合のみ使用（ランダム生成を制限）
             this.position = {
-                x: x,
-                y: y,
+                x: x !== undefined ? x : Math.random() * width,
+                y: y !== undefined ? y : Math.random() * height,
                 z: z || 0
             };
             
             // 速度（移動方向と速さ）
             const angle = Math.random() * Math.PI * 2;
-            const speed = 0.1 + Math.random() * 0.3;
+            const speed = 0.05 + Math.random() * 0.15;
             this.velocity = {
                 x: Math.cos(angle) * speed,
                 y: Math.sin(angle) * speed * 0.5,
@@ -74,10 +74,14 @@ document.addEventListener('DOMContentLoaded', () => {
             // 加速度
             this.acceleration = { x: 0, y: 0, z: 0 };
             
+            // 世代と遺伝的安定性を追加
+            this.generation = 1;  // 初期世代
+            this.ancestralStability = 1.0;  // 初期の遺伝的安定性（最大値）
+            
             // 生命体の特性
             this.dna = dna || {
                 // 基本的な特性
-                speed: 0.3 + Math.random() * 0.3,
+                speed: 0.2 + Math.random() * 0.2, // 0.3-0.6から0.2-0.4に減少（水中では最大速度を遅く）
                 efficiency: 0.5 + Math.random() * 0.3,
                 perception: 0.4 + Math.random() * 0.4,
                 foodAttraction: 0.5 + Math.random() * 0.5,
@@ -86,10 +90,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 predatory: Math.random(),
                 size: 0.2 + Math.random() * 0.4,
                 
+                // 向光性（光に対する反応）
+                phototropism: Math.random() * 2 - 1, // -1〜1の範囲：負の値は避光性、正の値は向光性
+                
                 // Boidの動きに関する特性
-                separationWeight: 0.7 + Math.random() * 0.3,
-                alignmentWeight: 0.2 + Math.random() * 0.3,
-                cohesionWeight: 0.1 + Math.random() * 0.2,
+                separationWeight: 0.5 + Math.random() * 0.3, // 0.7から0.5に減少（水中では個体間の距離が近くなる）
+                alignmentWeight: 0.15 + Math.random() * 0.2, // 0.2から0.15に減少（水中では方向の一致が弱まる）
+                cohesionWeight: 0.08 + Math.random() * 0.15, // 0.1から0.08に減少（水中では集団の凝集性が弱まる）
                 
                 // 繁殖戦略
                 offspringCount: 1 + Math.floor(Math.random() * 3),
@@ -124,7 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // 物理特性を更新
             this.mass = this.dna.size * 0.8 + 0.2;
             this.buoyancy = this.dna.size * 0.9 + 0.1;
-            this.dragCoefficient = 0.1;
+            this.dragCoefficient = 0.3; // 0.1から0.3に増加（水中の抵抗を強化）
             
             // 捕食性を連続的な特性として扱う
             this.predatoryBehavior = this.dna.predatory; // 0-1の連続値
@@ -311,29 +318,37 @@ document.addEventListener('DOMContentLoaded', () => {
                     separation.z * separation.z
                 );
                 if (sepMag > 0) {
-                    separation.x = (separation.x / sepMag) * this.dna.separationWeight;
-                    separation.y = (separation.y / sepMag) * this.dna.separationWeight;
-                    separation.z = (separation.z / sepMag) * this.dna.separationWeight;
+                    // 水中環境では分離の影響を弱める（より群れを形成しやすくする）
+                    const waterFactor = 0.85; // 水中での影響係数
+                    separation.x = (separation.x / sepMag) * this.dna.separationWeight * waterFactor;
+                    separation.y = (separation.y / sepMag) * this.dna.separationWeight * waterFactor;
+                    separation.z = (separation.z / sepMag) * this.dna.separationWeight * waterFactor;
                 }
                 
                 // 整列の正規化と重み付け
-                alignment.x = (alignment.x / flockCount) * this.dna.alignmentWeight;
-                alignment.y = (alignment.y / flockCount) * this.dna.alignmentWeight;
-                alignment.z = (alignment.z / flockCount) * this.dna.alignmentWeight;
+                // 水中環境では整列の影響を強める（より同じ方向に泳ぐように）
+                const alignWaterFactor = 1.2; // 水中での影響係数
+                alignment.x = (alignment.x / flockCount) * this.dna.alignmentWeight * alignWaterFactor;
+                alignment.y = (alignment.y / flockCount) * this.dna.alignmentWeight * alignWaterFactor;
+                alignment.z = (alignment.z / flockCount) * this.dna.alignmentWeight * alignWaterFactor;
                 
                 // 結合の計算と重み付け
                 avgPosition.x = avgPosition.x / flockCount;
                 avgPosition.y = avgPosition.y / flockCount;
                 avgPosition.z = avgPosition.z / flockCount;
                 
-                cohesion.x = (avgPosition.x - this.position.x) * this.dna.cohesionWeight;
-                cohesion.y = (avgPosition.y - this.position.y) * this.dna.cohesionWeight;
-                cohesion.z = (avgPosition.z - this.position.z) * this.dna.cohesionWeight;
+                // 水中環境では結合の影響を強める（より群れを維持しやすくする）
+                const cohesionWaterFactor = 1.15; // 水中での影響係数
+                cohesion.x = (avgPosition.x - this.position.x) * this.dna.cohesionWeight * cohesionWaterFactor;
+                cohesion.y = (avgPosition.y - this.position.y) * this.dna.cohesionWeight * cohesionWaterFactor;
+                cohesion.z = (avgPosition.z - this.position.z) * this.dna.cohesionWeight * cohesionWaterFactor;
                 
                 // すべての力を合成
-                steering.x += separation.x + alignment.x + cohesion.x;
-                steering.y += separation.y + alignment.y + cohesion.y;
-                steering.z += separation.z + alignment.z + cohesion.z;
+                // 水中環境では全体的な影響を弱める（より緩やかな動きに）
+                const waterSteeringFactor = 0.8; // 水中での操舵力係数
+                steering.x += (separation.x + alignment.x + cohesion.x) * waterSteeringFactor;
+                steering.y += (separation.y + alignment.y + cohesion.y) * waterSteeringFactor;
+                steering.z += (separation.z + alignment.z + cohesion.z) * waterSteeringFactor;
             }
             
             // 捕食行動
@@ -517,17 +532,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const buoyancyForce = -0.015 * this.buoyancy * (depth + 0.2) * buoyancyMultiplier;
             
             // 水の抵抗（速度に比例、逆向きの力）- 運動力が低いほど抵抗が大きくなる
-            const dragMultiplier = 1.2 - this.dna.speed * 0.5;
+            const dragMultiplier = 1.5 - this.dna.speed * 0.5; // 1.2から1.5に増加
             const dragForce = {
                 x: -this.velocity.x * this.dragCoefficient * dragMultiplier,
                 y: -this.velocity.y * this.dragCoefficient * dragMultiplier,
-                z: 0
+                z: -this.velocity.z * this.dragCoefficient * 0.5 // Z軸方向の抵抗を弱く設定（深度情報として使用）
             };
             
             // 合力を加速度に適用
             this.acceleration.y += gravity + buoyancyForce;
             this.acceleration.x += dragForce.x;
             this.acceleration.y += dragForce.y;
+            this.acceleration.z += dragForce.z; // Z軸方向の抵抗を適用（弱く）
         }
         
         // 生命体の更新
@@ -537,6 +553,10 @@ document.addEventListener('DOMContentLoaded', () => {
             // 年齢を増加
             this.age++;
             
+            // エネルギーコストを計算して適用
+            const costs = this.calculateEnergyCosts();
+            this.energy -= costs.totalCost;
+
             // 酸素消費と二酸化炭素生成の処理
             let oxygenAvailable = false;
             let consumedOxygen = 0;
@@ -544,8 +564,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // 現在位置の酸素を消費
             const currentOxygen = getOxygenAt(this.position.x, this.position.y);
-            const baseOxygenNeed = 0.04; // 基本酸素必要量を適度に調整（0.05から0.04に）
-            const neededOxygen = baseOxygenNeed * (1 - this.dna.oxygenEfficiency * 0.4); // 効率の影響を40%に緩和
+            const neededOxygen = costs.oxygenConsumption * (1 - this.dna.oxygenEfficiency * 0.4); // 効率の影響を40%に緩和
             
             if (currentOxygen > 0) {
                 consumedOxygen = Math.min(neededOxygen, currentOxygen);
@@ -601,10 +620,13 @@ document.addEventListener('DOMContentLoaded', () => {
             // 境界チェックを更新
             const boundaries = this.checkBoundaries();
             
-            // 力を適用
-            this.acceleration.x += (foodSeeking.x + interaction.x + boundaries.x) * 0.5;
-            this.acceleration.y += (foodSeeking.y + interaction.y + boundaries.y) * 0.5;
-            this.acceleration.z += (foodSeeking.z + interaction.z + boundaries.z) * 0.5;
+            // 光に対する反応を取得
+            const lightResponse = this.respondToLight();
+            
+            // 力を適用（光への反応を追加）
+            this.acceleration.x += (foodSeeking.x + interaction.x + boundaries.x + lightResponse.x) * 0.5;
+            this.acceleration.y += (foodSeeking.y + interaction.y + boundaries.y + lightResponse.y) * 0.5;
+            this.acceleration.z += (foodSeeking.z + interaction.z + boundaries.z + lightResponse.z) * 0.5;
             
             // 物理演算を適用
             this.applyPhysics();
@@ -614,6 +636,12 @@ document.addEventListener('DOMContentLoaded', () => {
             this.velocity.y += this.acceleration.y;
             this.velocity.z += this.acceleration.z;
             
+            // 水中の抵抗による速度減衰を追加
+            const velocityDamping = 0.95 + (this.dna.speed * 0.03); // 速度減衰係数（運動力が高いほど減衰が少ない）
+            this.velocity.x *= velocityDamping;
+            this.velocity.y *= velocityDamping;
+            this.velocity.z *= 0.98; // Z軸方向は弱い減衰のみ適用（深度情報として使用）
+            
             // 速度を制限
             const speed = Math.sqrt(
                 this.velocity.x * this.velocity.x + 
@@ -621,7 +649,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.velocity.z * this.velocity.z
             );
             
-            const maxSpeed = 0.5 * this.dna.speed;
+            const maxSpeed = 0.35 * this.dna.speed; // 0.5から0.35に減少（水中では最大速度を制限）
             
                 if (speed > maxSpeed) {
                     this.velocity.x = (this.velocity.x / speed) * maxSpeed;
@@ -741,12 +769,30 @@ document.addEventListener('DOMContentLoaded', () => {
             const offspringCount = this.dna.offspringCount;
             const energyPerChild = parentalInvestment / offspringCount; // 投資したエネルギーを均等に分配
             
+            // ストレス要因に基づく変異率の調整
+            let stressFactor = 1.0;
+            
+            // 1. エネルギーが低い（ダメージを負っている）場合のストレス
+            const energyStress = 1.0 + Math.max(0, (0.7 - this.energy) * 2);
+            
+            // 2. 毒素ダメージによるストレス
+            const toxicStress = this.countNearbyToxic() > 0 ? 1.5 : 1.0;
+            
+            // 3. マップ上方にいるほど変異率が上がる（Y座標が小さいほど上）
+            const heightFactor = 1.0 + Math.max(0, (height - this.position.y) / height);
+            
+            // 総合的なストレス係数を計算
+            stressFactor = energyStress * toxicStress * heightFactor;
+            
+            // 変異率に制限を設ける（最大で通常の3倍まで）
+            stressFactor = Math.min(3.0, stressFactor);
+            
             for (let i = 0; i < offspringCount; i++) {
                 // 子孫のDNAを作成（突然変異を含む）
                 const childDna = {};
                 for (const [key, value] of Object.entries(this.dna)) {
-                    // 各特性に突然変異を適用
-                    const mutation = (Math.random() * 2 - 1) * mutationRate;
+                    // 各特性に突然変異を適用（ストレス係数を考慮）
+                    const mutation = (Math.random() * 2 - 1) * mutationRate * stressFactor;
                     // 特性に応じて突然変異の影響を調整
                     const mutationScale = key === 'predatory' ? 0.5 : 1.0;
                     childDna[key] = value + mutation * mutationScale;
@@ -812,11 +858,316 @@ document.addEventListener('DOMContentLoaded', () => {
 
             return { totalDamage, nearestToxic, nearestDistance };
         }
+
+        // 光に対する反応（向光性/避光性）
+        respondToLight() {
+            // 水面からの距離に基づいて光の強さを計算
+            // 水面に近いほど光が強い
+            const depthRatio = 1 - (this.position.y / height);
+            const lightIntensity = Math.max(0, 1 - depthRatio * 1.5); // 水深による光の減衰
+            
+            // 向光性に基づく動き
+            // phototropismが正の値なら光に向かう（上に移動）
+            // phototropismが負の値なら光から離れる（下に移動）
+            const phototropicForce = this.dna.phototropism * lightIntensity * 0.02;
+            
+            // 返却値は加速度への影響
+            return { 
+                x: 0, 
+                y: -phototropicForce, // 負の値は上向き（水面方向）
+                z: 0 
+            };
+        }
+
+        // DNAを文字列に変換するメソッドを追加
+        getDNAString() {
+            // 各パラメータを2桁の16進数に変換する関数
+            const toHex = (value) => {
+                // 0-1の値を0-255の範囲に変換して16進数に
+                const hex = Math.floor(value * 255).toString(16).padStart(2, '0');
+                return hex;
+            };
+
+            // 特殊なパラメータの処理
+            const offspringCountHex = this.dna.offspringCount.toString(16).padStart(2, '0');
+            const socialBehaviorHex = toHex((this.dna.socialBehavior + 1) / 2); // -1〜1の値を0〜1に正規化
+
+            // DNAパラメータを文字列化
+            const dnaString = 
+                toHex(this.dna.speed) +
+                toHex(this.dna.efficiency) +
+                toHex(this.dna.perception) +
+                toHex(this.dna.foodAttraction) +
+                socialBehaviorHex +
+                toHex(this.dna.reproductionRate) +
+                toHex(this.dna.predatory) +
+                toHex(this.dna.size) +
+                toHex(this.dna.phototropism) +
+                toHex(this.dna.separationWeight) +
+                toHex(this.dna.alignmentWeight) +
+                toHex(this.dna.cohesionWeight) +
+                offspringCountHex +
+                toHex(this.dna.parentalCare) +
+                toHex(this.dna.regenerationRate) +
+                toHex(this.dna.toxicity) +
+                toHex(this.dna.oxygenEfficiency) +
+                toHex(this.dna.oxygenTolerance);
+
+            return dnaString;
+        }
+
+        // 文字列からDNAを復元するメソッド
+        static fromDNAString(dnaString) {
+            // 16進数の文字列を0-1の値に変換する関数
+            const fromHex = (hex) => {
+                return parseInt(hex, 16) / 255;
+            };
+
+            // DNAパラメータを2文字ずつ取り出して変換
+            const dna = {
+                speed: fromHex(dnaString.substr(0, 2)),
+                efficiency: fromHex(dnaString.substr(2, 2)),
+                perception: fromHex(dnaString.substr(4, 2)),
+                foodAttraction: fromHex(dnaString.substr(6, 2)),
+                socialBehavior: fromHex(dnaString.substr(8, 2)) * 2 - 1, // 0〜1の値を-1〜1に戻す
+                reproductionRate: fromHex(dnaString.substr(10, 2)),
+                predatory: fromHex(dnaString.substr(12, 2)),
+                size: fromHex(dnaString.substr(14, 2)),
+                phototropism: fromHex(dnaString.substr(16, 2)),
+                separationWeight: fromHex(dnaString.substr(18, 2)),
+                alignmentWeight: fromHex(dnaString.substr(20, 2)),
+                cohesionWeight: fromHex(dnaString.substr(22, 2)),
+                offspringCount: parseInt(dnaString.substr(24, 2), 16),
+                parentalCare: fromHex(dnaString.substr(26, 2)),
+                regenerationRate: fromHex(dnaString.substr(28, 2)),
+                toxicity: fromHex(dnaString.substr(30, 2)),
+                oxygenEfficiency: fromHex(dnaString.substr(32, 2)),
+                oxygenTolerance: fromHex(dnaString.substr(34, 2))
+            };
+
+            return dna;
+        }
+
+        // DNAに基づいてエネルギーコストを計算するメソッド
+        calculateEnergyCosts() {
+            // 基礎代謝コスト（サイズと効率に基づく）
+            const baseMetabolism = 0.001 * (this.dna.size * 1.5) * (1 - this.dna.efficiency * 0.5);
+
+            // 活動コスト（速度と知覚に基づく）
+            const activityCost = 0.002 * (this.dna.speed * 1.2 + this.dna.perception * 0.8);
+
+            // 特殊能力のコスト
+            const specialAbilitiesCost = 
+                (this.dna.regenerationRate * 0.01) +  // 再生能力
+                (this.dna.toxicity * 0.005) +         // 毒素維持
+                (Math.abs(this.dna.phototropism) * 0.002); // 光応答
+
+            // 社会的行動のコスト
+            const socialCost = Math.abs(this.dna.socialBehavior) * 0.001;
+
+            // 捕食者の場合の追加コスト
+            const predatorCost = this.dna.predatory > 0.5 ? this.dna.predatory * 0.003 : 0;
+
+            // 酸素消費量（効率に応じて変動）
+            const oxygenConsumption = 0.005 * (1 - this.dna.oxygenEfficiency * 0.4);
+
+            return {
+                baseMetabolism,
+                activityCost,
+                specialAbilitiesCost,
+                socialCost,
+                predatorCost,
+                oxygenConsumption,
+                totalCost: baseMetabolism + activityCost + specialAbilitiesCost + socialCost + predatorCost
+            };
+        }
+
+        // 生存に必要な最小エネルギーを計算
+        calculateMinimumEnergy() {
+            const costs = this.calculateEnergyCosts();
+            // 1000フレーム（約16.7秒）生存するのに必要なエネルギー
+            return costs.totalCost * 1000;
+        }
+
+        // 繁殖に必要なエネルギーを計算
+        calculateReproductionEnergy() {
+            // 基本コスト
+            const baseCost = 0.3;
+            
+            // 子孫数による追加コスト
+            const offspringCost = this.dna.offspringCount * 0.1;
+            
+            // 育児ケアによる追加コスト
+            const parentalCost = this.dna.parentalCare * 0.2;
+            
+            // DNAの複雑さに基づくコスト（全てのDNA値の平均）
+            const dnaComplexity = Object.values(this.dna).reduce((sum, value) => {
+                return sum + (typeof value === 'number' ? value : 0);
+            }, 0) / Object.values(this.dna).length;
+            
+            return baseCost + offspringCost + parentalCost + (dnaComplexity * 0.1);
+        }
+
+        // エネルギー情報を文字列として取得
+        getEnergyRequirements() {
+            const costs = this.calculateEnergyCosts();
+            const minimumEnergy = this.calculateMinimumEnergy();
+            const reproductionEnergy = this.calculateReproductionEnergy();
+
+            return `エネルギー要件:
+                基礎代謝: ${(costs.baseMetabolism * 1000).toFixed(3)}/秒
+                活動コスト: ${(costs.activityCost * 1000).toFixed(3)}/秒
+                特殊能力: ${(costs.specialAbilitiesCost * 1000).toFixed(3)}/秒
+                社会行動: ${(costs.socialCost * 1000).toFixed(3)}/秒
+                捕食者コスト: ${(costs.predatorCost * 1000).toFixed(3)}/秒
+                酸素消費: ${(costs.oxygenConsumption * 1000).toFixed(3)}/秒
+                総コスト: ${(costs.totalCost * 1000).toFixed(3)}/秒
+                
+                生存必要エネルギー: ${minimumEnergy.toFixed(3)}
+                繁殖必要エネルギー: ${reproductionEnergy.toFixed(3)}`;
+        }
+
+        // DNAの可読性の高い文字列表現を取得するメソッドを更新
+        getDNADescription() {
+            const basicInfo = `Lifeform DNA Information:
+                Speed: ${(this.dna.speed * 100).toFixed(1)}%
+                Efficiency: ${(this.dna.efficiency * 100).toFixed(1)}%
+                Perception: ${(this.dna.perception * 100).toFixed(1)}%
+                Food Attraction: ${(this.dna.foodAttraction * 100).toFixed(1)}%
+                Social Behavior: ${(this.dna.socialBehavior * 100).toFixed(1)}%
+                Reproduction Rate: ${(this.dna.reproductionRate * 100).toFixed(1)}%
+                Predatory: ${(this.dna.predatory * 100).toFixed(1)}%
+                Size: ${(this.dna.size * 100).toFixed(1)}%
+                Phototropism: ${(this.dna.phototropism * 100).toFixed(1)}%
+                Separation Weight: ${(this.dna.separationWeight * 100).toFixed(1)}%
+                Alignment Weight: ${(this.dna.alignmentWeight * 100).toFixed(1)}%
+                Cohesion Weight: ${(this.dna.cohesionWeight * 100).toFixed(1)}%
+                Offspring Count: ${this.dna.offspringCount}
+                Parental Care: ${(this.dna.parentalCare * 100).toFixed(1)}%
+                Regeneration Rate: ${(this.dna.regenerationRate * 100).toFixed(1)}%
+                Toxicity: ${(this.dna.toxicity * 100).toFixed(1)}%
+                Oxygen Efficiency: ${(this.dna.oxygenEfficiency * 100).toFixed(1)}%
+                Oxygen Tolerance: ${(this.dna.oxygenTolerance * 100).toFixed(1)}%
+                
+                Generation: ${this.generation}
+                Genetic Stability: ${(this.ancestralStability * 100).toFixed(1)}%`;
+
+            return basicInfo + '\n\n' + this.getEnergyRequirements();
+        }
+
+        // 遺伝情報を取得（子孫に渡すため）
+        getGeneticCode() {
+            return {
+                dnaString: this.getDNAString(),
+                generation: this.generation || 1,
+                ancestralStability: this.ancestralStability || 1.0
+            };
+        }
+
+        // 遺伝情報から生命体を生成（静的メソッド）
+        static fromGeneticCode(geneticCode, x, y, z, energy) {
+            const dna = Lifeform.fromDNAString(
+                Lifeform.mutateGeneticCode(
+                    geneticCode.dnaString,
+                    geneticCode.generation,
+                    geneticCode.ancestralStability
+                )
+            );
+            
+            const offspring = new Lifeform(x, y, z, energy, dna);
+            offspring.generation = geneticCode.generation + 1;
+            
+            // 世代を重ねるごとに遺伝的安定性が少しずつ低下
+            offspring.ancestralStability = Math.max(
+                0.1,
+                geneticCode.ancestralStability * 0.995
+            );
+            
+            return offspring;
+        }
+
+        // 遺伝情報に変異を加える（静的メソッド）
+        static mutateGeneticCode(dnaString, generation, stability) {
+            const mutationRate = 0.05 * (1 - stability); // 基本変異率（安定性が低いほど高くなる）
+            let mutatedDna = '';
+            
+            // 2文字ずつ処理（16進数のペア）
+            for (let i = 0; i < dnaString.length; i += 2) {
+                const genePair = dnaString.substr(i, 2);
+                
+                // 遺伝子の位置に基づく変異率の調整
+                // 前半の遺伝子（基本的な特性）ほど変異しやすい
+                const positionFactor = 1 - (i / dnaString.length);
+                const geneComplexity = parseInt(genePair, 16) / 255; // 遺伝子の複雑さ（値が大きいほど複雑）
+                
+                // 最終的な変異率の計算
+                const finalMutationRate = mutationRate * 
+                    positionFactor * // 位置による影響
+                    (1 + generation * 0.01) * // 世代による影響
+                    (1 - geneComplexity * 0.5); // 複雑さによる影響
+                
+                if (Math.random() < finalMutationRate) {
+                    // 変異の強度を計算（0.8-1.2の範囲）
+                    const mutationStrength = 0.8 + Math.random() * 0.4;
+                    
+                    // 16進数値を10進数に変換
+                    let value = parseInt(genePair, 16);
+                    
+                    // 値を変異させる
+                    value = Math.floor(value * mutationStrength);
+                    value = Math.max(0, Math.min(255, value)); // 0-255の範囲に収める
+                    
+                    // 16進数に戻して2桁に整形
+                    mutatedDna += value.toString(16).padStart(2, '0');
+                } else {
+                    mutatedDna += genePair;
+                }
+            }
+            
+            return mutatedDna;
+        }
+
+        // 繁殖メソッドを更新
+        reproduce(lifeforms) {
+            if (lifeforms.length >= maxLifeforms) return;
+            if (time - this.lastReproductionTime < 100) return;
+            
+            this.lastReproductionTime = time;
+            
+            // 親のエネルギー消費（子育ての度合いに応じて）
+            const parentalInvestment = this.energy * 0.5;
+            this.energy -= parentalInvestment;
+            
+            // 遺伝情報を取得
+            const geneticCode = this.getGeneticCode();
+            
+            // 複数の子孫を生成
+            const offspringCount = this.dna.offspringCount;
+            const energyPerChild = parentalInvestment / offspringCount;
+            
+            for (let i = 0; i < offspringCount; i++) {
+                const offsetDistance = 2 + this.dna.parentalCare * 3;
+                const offsetX = (Math.random() - 0.5) * offsetDistance;
+                const offsetY = (Math.random() - 0.5) * offsetDistance;
+                const offsetZ = (Math.random() - 0.5) * offsetDistance;
+                
+                // 遺伝情報から子孫を生成
+                const offspring = Lifeform.fromGeneticCode(
+                    geneticCode,
+                    this.position.x + offsetX,
+                    this.position.y + offsetY,
+                    this.position.z + offsetZ,
+                    energyPerChild
+                );
+                
+                lifeforms.push(offspring);
+            }
+        }
     }
     
     // 食物クラスを植物クラスに変更
     class Plant {
-        constructor(x, y, z, energy) {
+        constructor(x, y, z, energy, dna = null) {
             this.position = {
                 x: x !== undefined ? x : Math.random() * width,
                 y: y !== undefined ? y : height - 2 - Math.random() * 3,
@@ -824,40 +1175,64 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             this.energy = energy !== undefined ? energy : 0.3;
             this.age = 0;
-            this.maxAge = 2000 + Math.floor(Math.random() * 1000);
+            
+            // DNAの初期化
+            if (dna) {
+                this.dna = dna;
+            } else {
+                this.dna = {
+                    maxSize: Math.random() * 0.3 + 0.1,           // 最大サイズ (0.1-0.4)
+                    growthRate: Math.random() * 0.8 + 0.2,        // 成長速度 (0.2-1.0)
+                    photosynthesisEfficiency: Math.random() * 0.8 + 0.2, // 光合成効率 (0.2-1.0)
+                    rootStrength: Math.random() * 0.8 + 0.2,      // 根の強さ (0.2-1.0)
+                    maxHeight: Math.random() * 0.8 + 0.2,         // 最大高さの係数 (0.2-1.0)
+                    reproductionRate: Math.random() * 0.8 + 0.2,  // 繁殖率 (0.2-1.0)
+                    robustness: Math.random() * 0.8 + 0.2,        // 堅牢さ (0.2-1.0)
+                    redPigment: Math.random() * 0.5,              // 赤色素の量 (0-0.5)
+                    oxygenProduction: Math.random() * 0.8 + 0.2,  // 酸素生成効率 (0.2-1.0)
+                    co2Consumption: Math.random() * 0.8 + 0.2     // CO2消費効率 (0.2-1.0)
+                };
+            }
+            
+            // DNAに基づいてパラメータを設定
+            this.maxAge = 1500 + Math.floor(this.dna.robustness * 1000);
             this.size = 0.05;
-            this.maxSize = 0.2 + Math.random() * 0.2;
-            this.reproductionThreshold = 0.6;
+            this.maxSize = 0.1 + this.dna.maxSize * 0.3;
+            this.reproductionThreshold = 0.5 + this.dna.reproductionRate * 0.2;
             this.lastReproductionTime = 0;
             this.height = 0;
-            this.maxHeight = 40 + Math.random() * 60;  // 20-50から40-100に増加
+            this.maxHeight = 50 + this.dna.maxHeight * 150;
             this.growthHeight = 0;
-            this.maxGrowthHeight = 30 + Math.random() * 45;  // 10-25から30-75に増加
+            this.maxGrowthHeight = 40 + this.dna.maxHeight * 110;
+            
+            // 光効率関連のパラメータを追加
+            this.lightEfficiency = 0.7 + this.dna.photosynthesisEfficiency * 0.6;
+            this.heightEfficiencyBonus = 0.01 + this.dna.photosynthesisEfficiency * 0.02;
+            this.maxHeightBonus = 2.0 + this.dna.photosynthesisEfficiency * 2.0;
             
             // 物理特性を更新
             this.mass = this.size * 0.8 + 0.2;
             this.buoyancy = this.size * 0.4 + 0.1;
             this.dragCoefficient = 0.2;
+            this.rootStrength = 0.1 + this.dna.rootStrength * 0.4;
             
             this.velocity = { x: 0, y: 0, z: 0 };
             this.acceleration = { x: 0, y: 0, z: 0 };
             
-            // 根付きの強さ（底面との結合力）
-            this.rootStrength = 0.95;
+            // 健康状態と毒素ダメージ
+            this.health = 1.0;
+            this.toxicDamage = 0;
+            this.densityStress = 0;
+            this.maxDensityStress = 0.8;
+            this.densityRecoveryRate = 0.002;
             
-            // 沈殿状態を追加
-            this.isSinking = y < height - 5;  // 15から5に変更して、より深い位置で沈殿するように
+            // 沈殿状態の追跡
+            this.isSinking = false;
+            this.initialEnergy = this.energy;
+            this.initialSize = this.size;
             
-            // 沈殿中の特性を保存
-            if (this.isSinking) {
-                this.initialEnergy = this.energy;
-                this.initialSize = this.size;
-            }
-
-            this.health = 1.0;  // 体力を追加
-            this.maxHealth = 1.0;
-            this.growthHeight = 0;  // 上方向への成長を追跡
-            this.maxGrowthHeight = 10 + Math.random() * 15;  // 20-50から10-25に減少
+            // 世代カウンター
+            this.generation = 0;
         }
         
         // 捕食ダメージを受ける関数を追加
@@ -920,7 +1295,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         
-        update(plants, oxygens, co2s) {
+        update(plants, oxygens, co2s, toxicMatters) {
             if (this.isSinking) {
                 // 沈殿中は単純な物理演算のみ
                 this.applyPhysics();
@@ -953,22 +1328,67 @@ document.addEventListener('DOMContentLoaded', () => {
             
             this.age++;
             
+            // 密度ストレスの処理
+            const densityInfo = this.checkDensity(plants);
+            this.densityStress = Math.min(this.maxDensityStress, 
+                                         this.densityStress + densityInfo.densityStressIncrease);
+            
+            // 密度ストレスからの自然回復（周囲の密度が低い場合）
+            if (densityInfo.nearbyPlants <= 1 && densityInfo.totalSize < this.maxSize) {
+                this.densityStress = Math.max(0, this.densityStress - this.densityRecoveryRate);
+            }
+            
+            // 密度ストレスの影響
+            if (this.densityStress > 0) {
+                // 1. 光合成効率の低下
+                const densityPhotosynthesisPenalty = Math.max(0.3, 1 - this.densityStress);
+                
+                // 2. 成長速度の低下
+                const densityGrowthPenalty = Math.max(0.2, 1 - this.densityStress);
+                
+                // 3. エネルギー消費の増加（競争によるストレス）
+                this.energy -= this.densityStress * 0.002;
+                
+                // 4. 健康度への影響（長期的な密度ストレス）
+                if (this.densityStress > 0.5) {
+                    this.health = Math.max(0.1, this.health - (this.densityStress - 0.5) * 0.001);
+                }
+                
+                // 5. 極端な密度ストレスの場合、萎縮を促進
+                if (this.densityStress > 0.7) {
+                    const shrinkRate = 0.0001 * (this.densityStress - 0.7) * 10;
+                    this.size = Math.max(0.05, this.size - shrinkRate);
+                    
+                    if (this.growthHeight > 1) {
+                        this.growthHeight = Math.max(1, this.growthHeight - shrinkRate * 5);
+                    }
+                }
+            }
+            
             // 上方向への成長速度を調整
             if (this.energy > 0.4 && this.growthHeight < this.maxGrowthHeight) {  // エネルギー閾値を0.3から0.4に増加
-                const heightGrowthRate = 0.005;  // 0.02から0.005に大幅減少
+                const heightGrowthRate = 0.005 * this.dna.growthRate;  // 成長速度を遺伝子に基づいて調整
                 this.growthHeight += heightGrowthRate;
                 this.energy -= heightGrowthRate * 0.2;  // エネルギー消費を0.1から0.2に増加
 
                 // 上方向に新しい植物を生成する確率を調整
-                if (Math.random() < 0.002 && plants.length < maxLifeforms * 2) {  // 0.005から0.002に減少
-                    const newPlant = new Plant(
+                if (Math.random() < 0.002 * this.dna.reproductionRate && plants.length < maxLifeforms * 2) {  // 繁殖率に基づいて調整
+                    // 親の遺伝子コードを取得
+                    const parentGeneticCode = this.getGeneticCode();
+                    
+                    // 子の遺伝子コードを生成（変異を適用）
+                    const childGeneration = this.generation + 1;
+                    const stability = this.dna.robustness; // 堅牢さが高いほど変異が少ない
+                    const childGeneticCode = Plant.mutateGeneticCode(parentGeneticCode, childGeneration, stability);
+                    
+                    const newPlant = Plant.fromGeneticCode(
+                        childGeneticCode,
                         this.position.x + (Math.random() - 0.5) * 2,
                         this.position.y - this.growthHeight,
                         0,
                         0.4
                     );
-                    newPlant.size = this.size * 0.7;  // 0.8から0.7に減少
-                    newPlant.maxSize = this.maxSize * 0.8;  // 0.9から0.8に減少
+                    newPlant.generation = childGeneration;
                     plants.push(newPlant);
                 }
             }
@@ -981,18 +1401,23 @@ document.addEventListener('DOMContentLoaded', () => {
             const currentCO2 = getCO2At(this.position.x, this.position.y);
             
             if (currentCO2 > 0) {
-                consumedCO2 = Math.min(currentCO2, 0.005);  // 0.01から0.005に減少
+                consumedCO2 = Math.min(currentCO2, 0.005 * this.dna.co2Consumption);  // CO2消費効率に基づいて調整
                 changeCO2At(this.position.x, this.position.y, -consumedCO2);
                 co2Available = true;
             }
             
             // CO2の有無で光合成効率が変化
-            const photosynthesisRate = co2Available ? 0.002 : 0.0005;  // 0.004/0.001から0.002/0.0005に減少
+            const photosynthesisRate = co2Available ? 
+                0.002 * this.dna.photosynthesisEfficiency : 
+                0.0005 * this.dna.photosynthesisEfficiency;  // 光合成効率に基づいて調整
             this.energy += photosynthesisRate * (1 + consumedCO2 * 30);  // 係数を50から30に減少
             
             // 酸素を生成（CO2消費量に応じて生成量が増加）
             if (this.energy > 0.4 && Math.random() < 0.2) {  // エネルギー閾値を0.3から0.4に増加、確率を0.3から0.2に減少
-                const oxygenAmount = oxygenProductionRate * this.size * (1 + this.growthHeight / 5) * (1 + consumedCO2 * 50);
+                const oxygenAmount = oxygenProductionRate * this.size * 
+                    (1 + this.growthHeight / 5) * 
+                    (1 + consumedCO2 * 50) * 
+                    this.dna.oxygenProduction;  // 酸素生成効率に基づいて調整
                 
                 // 植物の周囲に酸素を放出
                 for (let i = 0; i < 2; i++) {
@@ -1079,18 +1504,27 @@ document.addEventListener('DOMContentLoaded', () => {
             this.energy -= reproductionCost;
             this.lastReproductionTime = time;
             
+            // 親の遺伝子コードを取得
+            const parentGeneticCode = this.getGeneticCode();
+            
+            // 子の遺伝子コードを生成（変異を適用）
+            const childGeneration = this.generation + 1;
+            const stability = this.dna.robustness; // 堅牢さが高いほど変異が少ない
+            const childGeneticCode = Plant.mutateGeneticCode(parentGeneticCode, childGeneration, stability);
+            
             // 繁殖方向をランダムに選択（横または上）
             const isVerticalGrowth = Math.random() < 0.1; // 20%から10%に減少（上方向への成長をさらに抑制）
             
             if (isVerticalGrowth && this.position.y > height * 0.7) { // 下層70%以下でのみ上方向に成長可能
                 // 上方向への繁殖距離を短く
-                const newPlant = new Plant(
+                const newPlant = Plant.fromGeneticCode(
+                    childGeneticCode,
                     this.position.x + (Math.random() - 0.5) * 2,
                     Math.max(this.position.y - 3 - Math.random() * 3, height * 0.7), // 下層70%より上には行かない
                     0,
                     0.4
                 );
-                newPlant.maxSize = this.maxSize * (0.95 + Math.random() * 0.2);
+                newPlant.generation = childGeneration;
                 plants.push(newPlant);
             } else {
                 // 横方向への繁殖（複数の子孫を生成）
@@ -1099,16 +1533,254 @@ document.addEventListener('DOMContentLoaded', () => {
                     const spreadDistance = 5 + this.size * 5;
                     const offsetX = (Math.random() - 0.5) * spreadDistance;
                     
-                    const newPlant = new Plant(
+                    // 子孫ごとに異なる変異を適用
+                    const uniqueChildGeneticCode = Plant.mutateGeneticCode(parentGeneticCode, childGeneration, stability);
+                    
+                    const newPlant = Plant.fromGeneticCode(
+                        uniqueChildGeneticCode,
                         this.position.x + offsetX,
                         Math.min(this.position.y + (Math.random() - 0.5) * 2, height - 1), // 底面より下には行かない
                         0,
                         0.4
                     );
-                    newPlant.maxSize = this.maxSize * (0.95 + Math.random() * 0.2);
+                    newPlant.generation = childGeneration;
                     plants.push(newPlant);
                 }
             }
+        }
+
+        // 毒素との相互作用をチェックするメソッドを追加
+        checkToxicInteraction(toxicMatters) {
+            let totalDamage = 0;
+            const toxicRadius = 5; // 毒素の影響範囲
+
+            for (const toxic of toxicMatters) {
+                if (toxic.decompositionStage !== 0) continue; // 未分解の毒素のみ影響を与える
+
+                const dx = this.position.x - toxic.position.x;
+                const dy = this.position.y - toxic.position.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (distance < toxicRadius) {
+                    // 距離に応じた毒素の影響を計算
+                    const toxicEffect = (toxic.toxicity * 0.03) * (1 - distance / toxicRadius);
+                    // 植物の毒素耐性に基づいてダメージを軽減
+                    totalDamage += toxicEffect * (1 - this.toxicResistance);
+                }
+            }
+
+            return totalDamage;
+        }
+
+        // 植物の色計算を修正して毒素の影響を表現
+        getPlantColor(plant, healthFactor = 1) {
+            // 基本色相（サイズに応じて緑の色調を変化）
+            let hue = 80 + (plant.size / plant.maxSize) * 20;
+            
+            // 遺伝子による色の変化（赤色素の量に応じて色相を変化）
+            const redTint = plant.dna.redPigment * 60; // 赤色素が多いほど赤みがかる
+            hue = Math.max(40, hue - redTint); // 赤色素が多いと黄色〜赤色に近づく
+            
+            // 高さによる色相の変化（高いほど鮮やかな緑に）
+            const heightRatio = plant.growthHeight / plant.maxGrowthHeight;
+            hue += heightRatio * 10;
+            
+            // 密度ストレスによる色相の変化（密度ストレスが高いと紫がかる）
+            if (plant.densityStress > 0.3) {
+                const purpleTint = (plant.densityStress - 0.3) / 0.7 * 30;
+                hue = Math.max(70, hue - purpleTint);
+            }
+            
+            // 年齢による色相の変化（老化すると黄色みが増す）
+            if (plant.age > plant.maxAge * 0.7) {
+                const agingFactor = (plant.age - plant.maxAge * 0.7) / (plant.maxAge * 0.3);
+                hue = Math.max(60, hue - agingFactor * 20);  // 老化すると黄色に近づく
+            }
+            
+            // エネルギー不足による色相の変化（エネルギーが少ないと茶色っぽくなる）
+            if (plant.energy < 0.3) {
+                const energyDeficit = (0.3 - plant.energy) / 0.3;
+                hue = Math.max(40, hue - energyDeficit * 30);  // エネルギー不足で茶色に
+            }
+            
+            // 毒素の影響で色相を黄色や茶色に変化
+            if (plant.toxicDamage > 0) {
+                hue = Math.max(40, hue - plant.toxicDamage * 40); // 毒素が多いほど黄色や茶色に
+            }
+            
+            // エネルギーと健康状態に基づく彩度（%表記）
+            let saturation = (0.6 + (plant.energy * 0.3)) * 100; // 彩度のベースを0.7から0.6に下げる
+            saturation *= healthFactor;
+            
+            // 堅牢さに基づく彩度の調整（堅牢さが高いほど彩度が高い）
+            saturation *= (0.7 + plant.dna.robustness * 0.4); // 係数を0.8から0.7に下げる
+            saturation = Math.min(90, saturation); // 彩度の上限を100%から90%に下げる
+            
+            // 光合成効率に基づく明度の調整（効率が高いほど明るい）（%表記）
+            let lightness = (0.25 + (plant.dna.photosynthesisEfficiency * 0.25)) * 100; // 明度の範囲を下げる（0.3-0.3から0.25-0.25に変更）
+            
+            // 健康状態による明度の調整
+            lightness *= healthFactor;
+            lightness = Math.min(60, lightness); // 明度の上限を80%から60%に下げる
+            
+            // 不透明度の設定
+            const opacity = 70 + plant.energy * 20; // 不透明度のベースを80%から70%に下げる
+            
+            // HSLAフォーマットで返す
+            return `hsla(${Math.round(hue)}, ${Math.round(saturation)}%, ${Math.round(lightness)}%, ${opacity}%)`;
+        }
+
+        // 周囲の植物密度をチェックするメソッド
+        checkDensity(plants) {
+            const densityRadius = 5;  // 密度チェックの半径
+            let nearbyPlants = 0;
+            let totalSize = 0;
+            
+            for (const otherPlant of plants) {
+                if (otherPlant === this) continue;
+                
+                const dx = this.position.x - otherPlant.position.x;
+                const dy = this.position.y - otherPlant.position.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance < densityRadius) {
+                    nearbyPlants++;
+                    totalSize += otherPlant.size;
+                    
+                    // 高さが近い植物ほどストレスが大きい（光の競合）
+                    const heightDifference = Math.abs(this.growthHeight - otherPlant.growthHeight);
+                    if (heightDifference < 5) {
+                        totalSize += otherPlant.size * (1 - heightDifference / 5);
+                    }
+                }
+            }
+            
+            // 密度ストレスの計算
+            let densityStressIncrease = 0;
+            
+            // 条件1: 近くの植物が多すぎる
+            if (nearbyPlants > 2) {
+                densityStressIncrease += 0.01 * (nearbyPlants - 2);
+            }
+            
+            // 条件2: 総サイズが大きすぎる
+            if (totalSize > this.maxSize * 1.5) {
+                densityStressIncrease += 0.01 * (totalSize / (this.maxSize * 1.5) - 1);
+            }
+            
+            // 条件3: エネルギーが少ない状態で植物が近くにある
+            if (nearbyPlants > 0 && this.energy < 0.3) {
+                densityStressIncrease += 0.01 * nearbyPlants * (0.3 - this.energy) / 0.3;
+            }
+            
+            // 密度耐性による軽減
+            densityStressIncrease *= (1 - this.densityTolerance);
+            
+            return {
+                nearbyPlants,
+                totalSize,
+                densityStressIncrease
+            };
+        }
+
+        // 遺伝子文字列を取得するメソッド
+        getDNAString() {
+            // 各パラメータを2桁の16進数に変換する関数
+            const toHex = (value) => {
+                // 0-1の値を0-255の範囲に変換して16進数に
+                const hex = Math.floor(value * 255).toString(16).padStart(2, '0');
+                return hex;
+            };
+
+            // DNAパラメータを文字列化
+            const dnaString = 
+                toHex(this.dna.maxSize) +
+                toHex(this.dna.growthRate) +
+                toHex(this.dna.photosynthesisEfficiency) +
+                toHex(this.dna.rootStrength) +
+                toHex(this.dna.maxHeight) +
+                toHex(this.dna.reproductionRate) +
+                toHex(this.dna.robustness) +
+                toHex(this.dna.redPigment) +
+                toHex(this.dna.oxygenProduction) +
+                toHex(this.dna.co2Consumption);
+
+            return dnaString;
+        }
+
+        // 文字列からDNAを復元する静的メソッド
+        static fromDNAString(dnaString) {
+            // 16進数の文字列を0-1の値に変換する関数
+            const fromHex = (hex) => {
+                return parseInt(hex, 16) / 255;
+            };
+
+            // DNAパラメータを2文字ずつ取り出して変換
+            const dna = {
+                maxSize: fromHex(dnaString.substr(0, 2)),
+                growthRate: fromHex(dnaString.substr(2, 2)),
+                photosynthesisEfficiency: fromHex(dnaString.substr(4, 2)),
+                rootStrength: fromHex(dnaString.substr(6, 2)),
+                maxHeight: fromHex(dnaString.substr(8, 2)),
+                reproductionRate: fromHex(dnaString.substr(10, 2)),
+                robustness: fromHex(dnaString.substr(12, 2)),
+                redPigment: fromHex(dnaString.substr(14, 2)),
+                oxygenProduction: fromHex(dnaString.substr(16, 2)),
+                co2Consumption: fromHex(dnaString.substr(18, 2))
+            };
+
+            return dna;
+        }
+
+        // 遺伝子コードを取得するメソッド
+        getGeneticCode() {
+            return this.getDNAString();
+        }
+
+        // 遺伝子コードから植物を生成する静的メソッド
+        static fromGeneticCode(geneticCode, x, y, z, energy) {
+            const dna = Plant.fromDNAString(geneticCode);
+            return new Plant(x, y, z, energy, dna);
+        }
+
+        // 遺伝子コードを変異させる静的メソッド
+        static mutateGeneticCode(dnaString, generation, stability = 0.5) {
+            const mutationRate = 0.05 * (1 - stability); // 基本変異率（安定性が低いほど高くなる）
+            let mutatedDna = '';
+            
+            // 2文字ずつ処理（16進数のペア）
+            for (let i = 0; i < dnaString.length; i += 2) {
+                const genePair = dnaString.substr(i, 2);
+                
+                // 遺伝子の位置に基づく変異率の調整
+                const positionFactor = 1 - (i / dnaString.length);
+                const geneComplexity = parseInt(genePair, 16) / 255; // 遺伝子の複雑さ
+                
+                // 最終的な変異率の計算
+                const finalMutationRate = mutationRate * 
+                    positionFactor * // 位置による影響
+                    (1 + generation * 0.01) * // 世代による影響
+                    (1 - geneComplexity * 0.5); // 複雑さによる影響
+                
+                if (Math.random() < finalMutationRate) {
+                    // 変異の強度を計算（0.8-1.2の範囲）
+                    const mutationStrength = 0.8 + Math.random() * 0.4;
+                    
+                    // 16進数値を10進数に変換
+                    let value = parseInt(genePair, 16);
+                    
+                    // 値を変異させる
+                    value = Math.floor(value * mutationStrength);
+                    value = Math.max(0, Math.min(255, value)); // 0-255の範囲に収める
+                    
+                    // 16進数に戻して2桁に整形
+                    mutatedDna += value.toString(16).padStart(2, '0');
+                } else {
+                    mutatedDna += genePair;
+                }
+            }
+            
+            return mutatedDna;
         }
     }
     
@@ -1415,25 +2087,171 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // 浄化バクテリアクラスを追加
     class PurifierBacteria {
-        constructor(x, y, z) {
+        constructor(x, y, z, dna = null) {
             this.position = {
                 x: x !== undefined ? x : Math.random() * width,
                 y: y !== undefined ? y : height - 2 - Math.random() * 3,
                 z: z || 0
             };
+
+            // 遺伝情報の初期化
+            this.dna = dna || {
+                // 基本的な特性
+                speed: 0.2 + Math.random() * 0.2,
+                efficiency: 0.5 + Math.random() * 0.3,
+                purificationPower: 0.4 + Math.random() * 0.4,
+                oxygenEfficiency: 0.5 + Math.random() * 0.3,
+                oxygenTolerance: 0.4 + Math.random() * 0.4,
+                reproductionRate: 0.1 + Math.random() * 0.2,
+                size: 0.1 + Math.random() * 0.1,
+                
+                // 環境適応性
+                depthPreference: Math.random(), // 0-1: 0が表層、1が深層を好む
+                toxicResistance: 0.3 + Math.random() * 0.4,
+                
+                // 社会性
+                cooperationFactor: Math.random(), // 他のバクテリアとの協調性
+                territorialBehavior: Math.random() // 縄張り意識の強さ
+            };
+
+            // 世代と遺伝的安定性を追加
+            this.generation = 1;
+            this.ancestralStability = 1.0;
+
             this.energy = 0.5 + Math.random() * 0.3;
             this.age = 0;
-            this.maxAge = 300 + Math.floor(Math.random() * 200); // 寿命を300-500に短縮
-            this.purificationEfficiency = 0.7 + Math.random() * 0.3;
-            this.size = 0.1 + Math.random() * 0.1;
+            this.maxAge = 300 + Math.floor(Math.random() * 200);
+            this.size = this.dna.size;
             this.velocity = { x: 0, y: 0, z: 0 };
             this.searchRadius = 20;
             this.currentTarget = null;
-            this.oxygenEfficiency = 0.4 + Math.random() * 0.4;
             this.oxygenReserve = 0.5;
             this.maxOxygenReserve = 1.0;
-            this.oxygenConsumptionRate = 0.008; // 酸素消費率を増加
-            this.speed = 0.3;
+            this.oxygenConsumptionRate = 0.008;
+            this.speed = this.dna.speed;
+            this.purificationEfficiency = this.dna.purificationPower;
+        }
+
+        // DNAを文字列に変換するメソッド
+        getDNAString() {
+            const toHex = (value) => {
+                return Math.floor(value * 255).toString(16).padStart(2, '0');
+            };
+
+            return Object.values(this.dna).map(toHex).join('');
+        }
+
+        // 文字列からDNAを復元する静的メソッド
+        static fromDNAString(dnaString) {
+            const fromHex = (hex) => {
+                return parseInt(hex, 16) / 255;
+            };
+
+            const values = [];
+            for (let i = 0; i < dnaString.length; i += 2) {
+                values.push(fromHex(dnaString.substr(i, 2)));
+            }
+
+            return {
+                speed: values[0],
+                efficiency: values[1],
+                purificationPower: values[2],
+                oxygenEfficiency: values[3],
+                oxygenTolerance: values[4],
+                reproductionRate: values[5],
+                size: values[6],
+                depthPreference: values[7],
+                toxicResistance: values[8],
+                cooperationFactor: values[9],
+                territorialBehavior: values[10]
+            };
+        }
+
+        // 遺伝情報を取得
+        getGeneticCode() {
+            return {
+                dnaString: this.getDNAString(),
+                generation: this.generation || 1,
+                ancestralStability: this.ancestralStability || 1.0
+            };
+        }
+
+        // 遺伝情報から新しいバクテリアを生成する静的メソッド
+        static fromGeneticCode(geneticCode, x, y, z, energy) {
+            const dna = PurifierBacteria.fromDNAString(
+                PurifierBacteria.mutateGeneticCode(
+                    geneticCode.dnaString,
+                    geneticCode.generation,
+                    geneticCode.ancestralStability
+                )
+            );
+            
+            const offspring = new PurifierBacteria(x, y, z, dna);
+            offspring.generation = geneticCode.generation + 1;
+            offspring.ancestralStability = Math.max(0.1, geneticCode.ancestralStability * 0.995);
+            offspring.energy = energy;
+            
+            return offspring;
+        }
+
+        // 遺伝情報に変異を加える静的メソッド
+        static mutateGeneticCode(dnaString, generation, stability) {
+            const mutationRate = 0.05 * (1 - stability);
+            let mutatedDna = '';
+            
+            for (let i = 0; i < dnaString.length; i += 2) {
+                const genePair = dnaString.substr(i, 2);
+                const positionFactor = 1 - (i / dnaString.length);
+                const geneComplexity = parseInt(genePair, 16) / 255;
+                
+                const finalMutationRate = mutationRate * 
+                    positionFactor * 
+                    (1 + generation * 0.01) * 
+                    (1 - geneComplexity * 0.5);
+                
+                if (Math.random() < finalMutationRate) {
+                    const mutationStrength = 0.8 + Math.random() * 0.4;
+                    let value = parseInt(genePair, 16);
+                    value = Math.floor(value * mutationStrength);
+                    value = Math.max(0, Math.min(255, value));
+                    mutatedDna += value.toString(16).padStart(2, '0');
+                } else {
+                    mutatedDna += genePair;
+                }
+            }
+            
+            return mutatedDna;
+        }
+
+        // 繁殖メソッドを更新
+        reproduce() {
+            if (bacteria.length >= bacteriaMaxCount) return false;
+
+            const offspringCount = 1 + Math.floor(Math.random() * 2);
+            const energyCost = this.energy * 0.4;
+            const oxygenCost = this.oxygenReserve * 0.3;
+            this.energy -= energyCost;
+            this.oxygenReserve -= oxygenCost;
+
+            const geneticCode = this.getGeneticCode();
+
+            for (let i = 0; i < offspringCount; i++) {
+                const spreadDistance = 3 + Math.random() * 2;
+                const angle = Math.random() * Math.PI * 2;
+                
+                const offspring = PurifierBacteria.fromGeneticCode(
+                    geneticCode,
+                    this.position.x + Math.cos(angle) * spreadDistance,
+                    this.position.y + Math.sin(angle) * spreadDistance,
+                    0,
+                    energyCost / offspringCount * 0.8
+                );
+                
+                offspring.oxygenReserve = oxygenCost / offspringCount * 0.8;
+                bacteria.push(offspring);
+            }
+            
+            return false;
         }
 
         // 酸素を探して吸収する関数
@@ -1465,42 +2283,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
             this.age++;
 
-            // 基礎代謝によるエネルギー消費
-            this.energy -= 0.001 * (1 + this.size); // サイズに応じたエネルギー消費
+            // 基礎代謝によるエネルギー消費（効率に基づく）
+            const baseMetabolism = 0.001 * (1 + this.size) * (1 - this.dna.efficiency * 0.5);
+            this.energy -= baseMetabolism;
 
-            // 移動によるエネルギー消費
+            // 移動によるエネルギー消費（速度と効率に基づく）
             const movementCost = Math.sqrt(
                 this.velocity.x * this.velocity.x +
                 this.velocity.y * this.velocity.y
-            ) * 0.002;
+            ) * 0.002 * (1 - this.dna.efficiency * 0.3);
             this.energy -= movementCost;
 
-            // 酸素消費（基本代謝）
-            const baseOxygenConsumption = this.oxygenConsumptionRate * (1 - this.oxygenEfficiency * 0.5);
+            // 酸素消費（効率に基づく）
+            const baseOxygenConsumption = this.oxygenConsumptionRate * (1 - this.dna.oxygenEfficiency * 0.5);
             this.oxygenReserve = Math.max(0, this.oxygenReserve - baseOxygenConsumption);
             
-            // 酸素を探して吸収
+            // 酸素を探して吸収（効率に基づく）
             if (oxygens && typeof oxygens.getOxygenAt === 'function') {
-                this.findAndConsumeOxygen(oxygens);
+                const localOxygen = oxygens.getOxygenAt(this.position.x, this.position.y);
+                if (localOxygen > 0) {
+                    const consumedAmount = Math.min(localOxygen, 0.01 * this.dna.oxygenEfficiency);
+                    oxygens.changeOxygenAt(this.position.x, this.position.y, -consumedAmount);
+                    this.oxygenReserve = Math.min(this.maxOxygenReserve, 
+                        this.oxygenReserve + consumedAmount * this.dna.oxygenEfficiency);
+                }
             }
             
             // 酸素不足時は活動を制限
             const oxygenFactor = Math.min(1, this.oxygenReserve / 0.2);
             
-            // 酸素不足によるダメージ
+            // 酸素不足によるダメージ（耐性に基づく）
             if (this.oxygenReserve < 0.1) {
-                this.energy -= 0.002 * (1 - this.oxygenReserve * 10);
+                const oxygenDamage = 0.002 * (1 - this.oxygenReserve * 10) * (1 - this.dna.oxygenTolerance);
+                this.energy -= oxygenDamage;
             }
 
             // 死亡条件をチェック
-            if (this.energy <= 0 || // エネルギー切れ
-                this.age >= this.maxAge || // 寿命
-                this.oxygenReserve <= 0) { // 酸素不足による死亡
+            if (this.energy <= 0 || this.age >= this.maxAge || this.oxygenReserve <= 0) {
                 return true;
             }
-            
-            // 現在の対象がなければ新しい毒素を探す
-            let foundToxic = false;
             
             // 現在の対象がなければ新しい毒素を探す
             if (!this.currentTarget) {
@@ -1513,8 +2334,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         const dy = this.position.y - toxic.position.y;
                         const distance = Math.sqrt(dx * dx + dy * dy);
 
-                        if (distance < closestDist) {
-                            closestDist = distance;
+                        // 深度選好性に基づいて距離を調整
+                        const depthFactor = Math.abs(this.dna.depthPreference - (toxic.position.y / height));
+                        const adjustedDistance = distance * (1 + depthFactor);
+
+                        if (adjustedDistance < closestDist) {
+                            closestDist = adjustedDistance;
                             closestToxic = toxic;
                         }
                     }
@@ -1532,28 +2357,70 @@ document.addEventListener('DOMContentLoaded', () => {
                 const distance = Math.sqrt(dx * dx + dy * dy);
 
                 if (distance < 3) {
-                    // 分解作業中の処理は変更なし
-                    // ... existing code ...
+                    // 毒素の分解（浄化効率と毒素耐性に基づく）
+                    this.currentTarget.bacteriaCount++;
+                    const decompositionEfficiency = this.dna.purificationPower * 
+                        (1 + this.dna.toxicResistance * 0.5);
+                    
+                    // 毒素による影響（耐性に基づく）
+                    const toxicDamage = this.currentTarget.toxicity * 0.01 * 
+                        (1 - this.dna.toxicResistance);
+                    this.energy -= toxicDamage;
+                    
+                    // エネルギー獲得（効率に基づく）
+                    const energyGain = 0.005 * decompositionEfficiency * this.dna.efficiency;
+                    this.energy = Math.min(1.0, this.energy + energyGain);
                 } else {
-                    // 対象に向かって移動（速度を増加）
-                    this.velocity.x = (dx / distance) * this.speed * oxygenFactor;
-                    this.velocity.y = (dy / distance) * this.speed * oxygenFactor;
+                    // 対象に向かって移動（速度と酸素状態に基づく）
+                    const moveSpeed = this.dna.speed * oxygenFactor;
+                    this.velocity.x = (dx / distance) * moveSpeed;
+                    this.velocity.y = (dy / distance) * moveSpeed;
                 }
             } else {
-                // ランダムな移動（速度を増加）
+                // ランダムな移動（社会性に基づく）
                 if (Math.random() < 0.05 * oxygenFactor) {
-                    this.velocity.x = (Math.random() - 0.5) * this.speed * oxygenFactor;
-                    this.velocity.y = (Math.random() - 0.5) * this.speed * oxygenFactor;
+                    // 他のバクテリアとの相互作用を考慮
+                    let socialForce = { x: 0, y: 0 };
+                    let nearbyCount = 0;
+                    
+                    for (const other of bacteria) {
+                        if (other === this) continue;
+                        
+                        const dx = other.position.x - this.position.x;
+                        const dy = other.position.y - this.position.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        
+                        if (distance < 10) {
+                            // 協調性と縄張り意識に基づく力を計算
+                            const socialFactor = (this.dna.cooperationFactor - 
+                                this.dna.territorialBehavior) / distance;
+                            socialForce.x += dx * socialFactor;
+                            socialForce.y += dy * socialFactor;
+                            nearbyCount++;
+                        }
+                    }
+                    
+                    if (nearbyCount > 0) {
+                        // 社会的な力を正規化して適用
+                        const forceMagnitude = Math.sqrt(
+                            socialForce.x * socialForce.x + 
+                            socialForce.y * socialForce.y
+                        );
+                        if (forceMagnitude > 0) {
+                            this.velocity.x = (socialForce.x / forceMagnitude) * this.dna.speed;
+                            this.velocity.y = (socialForce.y / forceMagnitude) * this.dna.speed;
+                        }
+                    } else {
+                        // 他のバクテリアが近くにいない場合はランダムな移動
+                        this.velocity.x = (Math.random() - 0.5) * this.dna.speed;
+                        this.velocity.y = (Math.random() - 0.5) * this.dna.speed;
+                    }
                 }
             }
 
-            // 位置の更新と境界チェックの改善
+            // 位置の更新と境界チェック
             this.position.x += this.velocity.x;
             this.position.y += this.velocity.y;
-
-            // 改善された境界チェック
-            const surfaceMargin = 2;
-            const bottomMargin = 3;
             
             // 水平方向の境界
             if (this.position.x < 0) {
@@ -1564,61 +2431,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.velocity.x *= -0.5;
             }
             
-            // 垂直方向の境界（水面と底面での特殊な挙動）
-            if (this.position.y < surfaceMargin) {
-                // 水面付近での挙動
-                const surfaceOxygen = oxygens.getOxygenAt(this.position.x, 0);
-                if (surfaceOxygen > 0.5) {
-                    // 酸素が豊富な場合は水面付近に留まりやすく
-                    this.position.y = Math.max(1, this.position.y);
-                    this.velocity.y *= 0.5;
-                } else {
-                    // 酸素が少ない場合は下に移動
-                    this.velocity.y += 0.01;
-                }
-            } else if (this.position.y >= height - bottomMargin) {
-                // 底面付近での挙動
-                this.position.y = Math.min(height - 1, this.position.y);
-                this.velocity.y *= -0.3;
-            }
+            // 垂直方向の境界（深度選好性に基づく）
+            const preferredDepth = this.dna.depthPreference * height;
+            const depthDifference = this.position.y - preferredDepth;
+            this.velocity.y -= depthDifference * 0.001;
 
-            // エネルギー消費と繁殖判定は変更なし
-            // ... existing code ...
-        }
-
-        reproduce() {
-            if (bacteria.length >= bacteriaMaxCount) return false;
-
-            // エネルギーと酸素を消費して子孫を生成
-            const offspringCount = 1 + Math.floor(Math.random() * 2);
-            const energyCost = this.energy * 0.4;
-            const oxygenCost = this.oxygenReserve * 0.3;
-            this.energy -= energyCost;
-            this.oxygenReserve -= oxygenCost;
-
-            for (let i = 0; i < offspringCount; i++) {
-                const spreadDistance = 3 + Math.random() * 2;
-                const angle = Math.random() * Math.PI * 2;
-                
-                const child = new PurifierBacteria(
-                    this.position.x + Math.cos(angle) * spreadDistance,
-                    this.position.y + Math.sin(angle) * spreadDistance,
-                    0
-                );
-                
-                // 特性の継承と突然変異
-                child.purificationEfficiency = Math.max(0.1, Math.min(1.0,
-                    this.purificationEfficiency + (Math.random() - 0.5) * 0.2
-                ));
-                child.oxygenEfficiency = Math.max(0.1, Math.min(1.0,
-                    this.oxygenEfficiency + (Math.random() - 0.5) * 0.2
-                ));
-                
-                // エネルギーと酸素の分配
-                child.energy = energyCost / offspringCount * 0.8;
-                child.oxygenReserve = oxygenCost / offspringCount * 0.8;
-                
-                bacteria.push(child);
+            // 繁殖判定（繁殖率に基づく）
+            if (this.energy > 0.7 && Math.random() < this.dna.reproductionRate * 0.1) {
+                this.reproduce();
             }
             
             return false;
@@ -1841,6 +2661,9 @@ document.addEventListener('DOMContentLoaded', () => {
         predatory: 0.3,       // やや低めの捕食性
         size: 0.4,           // 中央値を使用
         
+        // 向光性（光に対する反応）
+        phototropism: 0.3,    // やや向光性（正の値）
+        
         // Boidの動きに関する特性
         separationWeight: 0.85,
         alignmentWeight: 0.35,
@@ -1910,21 +2733,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // 植物の色計算を修正
     function getPlantColor(plant, healthFactor = 1) {
-        // 基本色相（サイズに応じて緑の色調を変化）
-        const hue = 80 + (plant.size / plant.maxSize) * 20;  // 90-120から80-100に変更
-        
-        // エネルギーと健康状態に基づく彩度
-        const saturation = 20 + (plant.energy * 30 + healthFactor * 20);  // より控えめに
-        
-        // サイズとエネルギーに基づく明度
-        const sizeFactor = plant.size / plant.maxSize;
-        const energyFactor = plant.energy * 0.8;
-        const lightness = Math.max(15, (25 + sizeFactor * 20) * healthFactor * energyFactor);
-        
-        // 不透明度も健康状態とエネルギーに応じて変化
-        const opacity = 30 + (healthFactor * 30 + plant.energy * 20);  // 30-80%の不透明度
-        
-        return `hsla(${hue}, ${saturation}%, ${lightness}%, ${opacity}%)`;
+        return plant.getPlantColor(plant, healthFactor);
     }
     
     // フレームを描画
@@ -2049,7 +2858,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             '│';  // 茎を表現
 
                         // 体力に応じて色を調整
-                        const healthFactor = plant.health / plant.maxHealth;
+                        const healthFactor = plant.health !== undefined ? plant.health : 1.0;
                         const color = getPlantColor(plant, healthFactor);
 
                         zBuffer[bufferIndex] = {
@@ -2320,68 +3129,169 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 嫌気性バクテリアクラスを追加
     class AnaerobicBacteria {
-        constructor(x, y, z) {
+        constructor(x, y, z, dna = null) {
             this.position = {
                 x: x !== undefined ? x : Math.random() * width,
                 y: y !== undefined ? y : height - 2 - Math.random() * 3,
                 z: z || 0
             };
+
+            // 遺伝情報の初期化
+            this.dna = dna || {
+                // 基本的な特性
+                speed: 0.1 + Math.random() * 0.2, // 好気性より遅め
+                efficiency: 0.6 + Math.random() * 0.3, // 好気性より効率的
+                decompositionPower: 0.5 + Math.random() * 0.4,
+                oxygenSensitivity: 0.5 + Math.random() * 0.3, // 酸素への耐性（低いほど敏感）
+                size: 0.1 + Math.random() * 0.1,
+                reproductionRate: 0.1 + Math.random() * 0.2,
+                
+                // 環境適応性
+                depthPreference: 0.6 + Math.random() * 0.4, // 0.6-1.0: 深層を好む
+                organicMatterAffinity: 0.4 + Math.random() * 0.4, // 有機物への親和性
+                
+                // 社会性
+                cooperationFactor: Math.random(), // 他のバクテリアとの協調性
+                territorialBehavior: Math.random(), // 縄張り意識の強さ
+                
+                // 特殊能力
+                fermentationEfficiency: 0.4 + Math.random() * 0.4 // 発酵効率
+            };
+
+            // 世代と遺伝的安定性を追加
+            this.generation = 1;
+            this.ancestralStability = 1.0;
+
             this.energy = 0.5 + Math.random() * 0.3;
             this.age = 0;
-            this.maxAge = 250 + Math.floor(Math.random() * 150); // 寿命を250-400に短縮
-            this.decompositionEfficiency = 0.6 + Math.random() * 0.4;
-            this.size = 0.1 + Math.random() * 0.1;
+            this.maxAge = 250 + Math.floor(Math.random() * 150);
+            this.size = this.dna.size;
             this.velocity = { x: 0, y: 0, z: 0 };
-            this.searchRadius = 15; // 探索範囲を拡大
+            this.searchRadius = 15;
             this.currentTarget = null;
+            this.decompositionEfficiency = this.dna.decompositionPower;
+        }
+
+        // DNAを文字列に変換するメソッド
+        getDNAString() {
+            const toHex = (value) => {
+                return Math.floor(value * 255).toString(16).padStart(2, '0');
+            };
+
+            return Object.values(this.dna).map(toHex).join('');
+        }
+
+        // 文字列からDNAを復元する静的メソッド
+        static fromDNAString(dnaString) {
+            const fromHex = (hex) => {
+                return parseInt(hex, 16) / 255;
+            };
+
+            const values = [];
+            for (let i = 0; i < dnaString.length; i += 2) {
+                values.push(fromHex(dnaString.substr(i, 2)));
+            }
+
+            return {
+                speed: values[0],
+                efficiency: values[1],
+                decompositionPower: values[2],
+                oxygenSensitivity: values[3],
+                size: values[4],
+                reproductionRate: values[5],
+                depthPreference: values[6],
+                organicMatterAffinity: values[7],
+                cooperationFactor: values[8],
+                territorialBehavior: values[9],
+                fermentationEfficiency: values[10]
+            };
+        }
+
+        // 遺伝情報を取得
+        getGeneticCode() {
+            return {
+                dnaString: this.getDNAString(),
+                generation: this.generation || 1,
+                ancestralStability: this.ancestralStability || 1.0
+            };
+        }
+
+        // 遺伝情報から新しいバクテリアを生成する静的メソッド
+        static fromGeneticCode(geneticCode, x, y, z, energy) {
+            const dna = AnaerobicBacteria.fromDNAString(
+                AnaerobicBacteria.mutateGeneticCode(
+                    geneticCode.dnaString,
+                    geneticCode.generation,
+                    geneticCode.ancestralStability
+                )
+            );
             
-            // 嫌気性特性
-            this.oxygenTolerance = 0.4; // 酸素耐性を上げる
-            this.optimalDepth = height - 3;
-            this.depthTolerance = 6; // 深度の許容範囲を広げる
+            const offspring = new AnaerobicBacteria(x, y, z, dna);
+            offspring.generation = geneticCode.generation + 1;
+            offspring.ancestralStability = Math.max(0.1, geneticCode.ancestralStability * 0.995);
+            offspring.energy = energy;
+            
+            return offspring;
+        }
+
+        // 遺伝情報に変異を加える静的メソッド
+        static mutateGeneticCode(dnaString, generation, stability) {
+            const mutationRate = 0.05 * (1 - stability);
+            let mutatedDna = '';
+            
+            for (let i = 0; i < dnaString.length; i += 2) {
+                const genePair = dnaString.substr(i, 2);
+                const positionFactor = 1 - (i / dnaString.length);
+                const geneComplexity = parseInt(genePair, 16) / 255;
+                
+                const finalMutationRate = mutationRate * 
+                    positionFactor * 
+                    (1 + generation * 0.01) * 
+                    (1 - geneComplexity * 0.5);
+                
+                if (Math.random() < finalMutationRate) {
+                    const mutationStrength = 0.8 + Math.random() * 0.4;
+                    let value = parseInt(genePair, 16);
+                    value = Math.floor(value * mutationStrength);
+                    value = Math.max(0, Math.min(255, value));
+                    mutatedDna += value.toString(16).padStart(2, '0');
+                } else {
+                    mutatedDna += genePair;
+                }
+            }
+            
+            return mutatedDna;
         }
 
         update(plantDebris, oxygens) {
             this.age++;
 
-            // 基礎代謝によるエネルギー消費
-            this.energy -= 0.0008 * (1 + this.size); // 好気性バクテリアより少し効率的
+            // 基礎代謝によるエネルギー消費（効率に基づく）
+            const baseMetabolism = 0.001 * (1 + this.size) * (1 - this.dna.efficiency * 0.5);
+            this.energy -= baseMetabolism;
 
-            // 移動によるエネルギー消費
+            // 移動によるエネルギー消費（速度と効率に基づく）
             const movementCost = Math.sqrt(
                 this.velocity.x * this.velocity.x +
                 this.velocity.y * this.velocity.y
-            ) * 0.001; // 好気性バクテリアより移動コストが低い
+            ) * 0.002 * (1 - this.dna.efficiency * 0.3);
             this.energy -= movementCost;
             
-            // 深度効率の計算を改善
-            const optimalDepth = height - 3;
-            const depthDifference = Math.abs(this.position.y - optimalDepth);
-            const depthEfficiency = Math.max(0, 1 - (depthDifference / 5));
-
-            // 不適切な深度でのペナルティ
-            if (depthEfficiency < 0.5) {
-                this.energy -= 0.001 * (1 - depthEfficiency);
-            }
-
-            // 酸素による悪影響（嫌気性バクテリアなので）
+            // 酸素による悪影響（感受性に基づく）
             if (oxygens && typeof oxygens.getOxygenAt === 'function') {
                 const localOxygen = oxygens.getOxygenAt(this.position.x, this.position.y);
-                if (localOxygen > 0.4) { // 高酸素環境でのダメージ
-                    this.energy -= 0.002 * (localOxygen - 0.4);
+                if (localOxygen > 0.2) {
+                    const oxygenDamage = 0.002 * (localOxygen - 0.2) * this.dna.oxygenSensitivity;
+                    this.energy -= oxygenDamage;
                 }
             }
 
             // 死亡条件をチェック
-            if (this.energy <= 0 || // エネルギー切れ
-                this.age >= this.maxAge) { // 寿命
+            if (this.energy <= 0 || this.age >= this.maxAge) {
                 return true;
             }
             
-            // 現在の対象がなければ新しい植物の死骸を探す
-            let foundDebris = false;
-            
-            // 現在の対象がなければ新しい植物の死骸を探す
+            // 現在の対象がなければ新しい有機物を探す
             if (!this.currentTarget) {
                 let closestDist = this.searchRadius;
                 let closestDebris = null;
@@ -2392,8 +3302,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         const dy = this.position.y - debris.position.y;
                         const distance = Math.sqrt(dx * dx + dy * dy);
 
-                        if (distance < closestDist) {
-                            closestDist = distance;
+                        // 深度選好性と有機物親和性に基づいて距離を調整
+                        const depthFactor = Math.abs(this.dna.depthPreference - (debris.position.y / height));
+                        const affinityFactor = 1 - this.dna.organicMatterAffinity;
+                        const adjustedDistance = distance * (1 + depthFactor) * (1 + affinityFactor);
+
+                        if (adjustedDistance < closestDist) {
+                            closestDist = adjustedDistance;
                             closestDebris = debris;
                         }
                     }
@@ -2411,43 +3326,63 @@ document.addEventListener('DOMContentLoaded', () => {
                 const distance = Math.sqrt(dx * dx + dy * dy);
 
                 if (distance < 3) {
-                    foundDebris = true;
+                    // 有機物の分解（分解効率と発酵効率に基づく）
                     this.currentTarget.anaerobicBacteriaCount++;
+                    const decompositionEfficiency = this.dna.decompositionPower * 
+                        (1 + this.dna.fermentationEfficiency * 0.5);
                     
-                    // エネルギー消費と獲得（深度効率に応じて）
-                    const energyGain = 0.002 * this.decompositionEfficiency * depthEfficiency;
-                    this.energy += energyGain;
-                    
-                    // 分解進行度を増加
-                    const decompositionIncrease = 0.005 * this.decompositionEfficiency * depthEfficiency;
-                    this.currentTarget.decompositionProgress += decompositionIncrease;
-                    
-                    // 堆肥への変換をチェック
-                    if (this.currentTarget.decompositionProgress >= 1) {
-                        this.currentTarget.isCompost = true;
-                        this.currentTarget.compostNutrientValue = 0.8 + Math.random() * 0.2; // 栄養価を設定
-                        this.currentTarget.color = {
-                            hue: 25,
-                            saturation: 70,
-                            lightness: 20,
-                            opacity: 90
-                        };
-                        this.currentTarget = null;
-                    }
+                    // エネルギー獲得（効率に基づく）
+                    const energyGain = 0.005 * decompositionEfficiency * this.dna.efficiency;
+                    this.energy = Math.min(1.0, this.energy + energyGain);
                 } else {
-                    // 対象に向かってゆっくり移動
-                    this.velocity.x = (dx / distance) * 0.1;
-                    this.velocity.y = (dy / distance) * 0.1;
+                    // 対象に向かって移動
+                    const moveSpeed = this.dna.speed;
+                    this.velocity.x = (dx / distance) * moveSpeed;
+                    this.velocity.y = (dy / distance) * moveSpeed;
                 }
             } else {
-                // ランダムな移動（より制限された範囲で）
+                // ランダムな移動（社会性に基づく）
                 if (Math.random() < 0.05) {
-                    this.velocity.x = (Math.random() - 0.5) * 0.1;
-                    this.velocity.y = (Math.random() - 0.5) * 0.1;
+                    // 他のバクテリアとの相互作用を考慮
+                    let socialForce = { x: 0, y: 0 };
+                    let nearbyCount = 0;
+                    
+                    for (const other of anaerobicBacteria) {
+                        if (other === this) continue;
+                        
+                        const dx = other.position.x - this.position.x;
+                        const dy = other.position.y - this.position.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        
+                        if (distance < 10) {
+                            // 協調性と縄張り意識に基づく力を計算
+                            const socialFactor = (this.dna.cooperationFactor - 
+                                this.dna.territorialBehavior) / distance;
+                            socialForce.x += dx * socialFactor;
+                            socialForce.y += dy * socialFactor;
+                            nearbyCount++;
+                        }
+                    }
+                    
+                    if (nearbyCount > 0) {
+                        // 社会的な力を正規化して適用
+                        const forceMagnitude = Math.sqrt(
+                            socialForce.x * socialForce.x + 
+                            socialForce.y * socialForce.y
+                        );
+                        if (forceMagnitude > 0) {
+                            this.velocity.x = (socialForce.x / forceMagnitude) * this.dna.speed;
+                            this.velocity.y = (socialForce.y / forceMagnitude) * this.dna.speed;
+                }
+            } else {
+                        // 他のバクテリアが近くにいない場合はランダムな移動
+                        this.velocity.x = (Math.random() - 0.5) * this.dna.speed;
+                        this.velocity.y = (Math.random() - 0.5) * this.dna.speed;
+                    }
                 }
             }
 
-            // 位置の更新と改善された境界チェック
+            // 位置の更新と境界チェック
             this.position.x += this.velocity.x;
             this.position.y += this.velocity.y;
 
@@ -2460,22 +3395,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.velocity.x *= -0.5;
             }
             
-            // 垂直方向の境界（より自然な遷移）
-            const minDepth = height - 5;
-            const maxDepth = height - 1;
-            
-            if (this.position.y < minDepth) {
-                // 徐々に下方向に移動
-                const depthForce = 0.005 * (1 - depthEfficiency);
-                this.velocity.y += depthForce;
-                this.velocity.y = Math.min(this.velocity.y, 0.1);
-            } else if (this.position.y > maxDepth) {
-                this.position.y = maxDepth;
-                this.velocity.y = 0;
+            // 垂直方向の境界（深度選好性に基づく）
+            const preferredDepth = this.dna.depthPreference * height;
+            const depthDifference = this.position.y - preferredDepth;
+            this.velocity.y -= depthDifference * 0.001;
+
+            // 繁殖判定（繁殖率に基づく）
+            if (this.energy > 0.7 && Math.random() < this.dna.reproductionRate * 0.1) {
+                this.reproduce();
             }
 
-            // エネルギー消費と繁殖判定は変更なし
-            // ... existing code ...
+            return false;
         }
 
         reproduce() {
@@ -2485,22 +3415,21 @@ document.addEventListener('DOMContentLoaded', () => {
             const energyCost = this.energy * 0.4;
             this.energy -= energyCost;
 
+            const geneticCode = this.getGeneticCode();
+
             for (let i = 0; i < offspringCount; i++) {
                 const spreadDistance = 2 + Math.random() * 2;
                 const angle = Math.random() * Math.PI * 2;
                 
-                const child = new AnaerobicBacteria(
+                const offspring = AnaerobicBacteria.fromGeneticCode(
+                    geneticCode,
                     this.position.x + Math.cos(angle) * spreadDistance,
                     this.position.y + Math.sin(angle) * spreadDistance,
-                    0
+                    0,
+                    energyCost / offspringCount * 0.8
                 );
                 
-                child.decompositionEfficiency = Math.max(0.1, Math.min(1.0,
-                    this.decompositionEfficiency + (Math.random() - 0.5) * 0.2
-                ));
-                child.energy = energyCost / offspringCount * 0.8;
-                
-                anaerobicBacteria.push(child);
+                anaerobicBacteria.push(offspring);
             }
             
             return false;
