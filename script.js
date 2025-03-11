@@ -100,8 +100,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 toxicity: Math.random() * 0.5,
                 
                 // 酸素関連の特性
-                oxygenEfficiency: 0.5 + Math.random() * 0.3, // 酸素利用効率
-                oxygenTolerance: 0.3 + Math.random() * 0.4,  // 低酸素耐性
+                oxygenEfficiency: 0.5 + Math.random() * 0.3,
+                oxygenTolerance: 0.3 + Math.random() * 0.4
             };
             
             // 生命体の状態
