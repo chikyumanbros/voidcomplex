@@ -1589,13 +1589,11 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // 酸素不足によるダメージ
             if (this.oxygenReserve < 0.1) {
-                this.energy -= 0.005 * (1 - this.oxygenReserve * 10); // 0.002から0.005に増加
+                this.energy -= 0.005 * (1 - this.oxygenReserve * 10);
             }
 
             // 死亡条件をチェック
-            if (this.energy <= 0 || // エネルギー切れ
-                this.age >= this.maxAge || // 寿命
-                this.oxygenReserve <= 0) { // 酸素不足による死亡
+            if (this.energy <= 0 || this.age >= this.maxAge) {
                 return true;
             }
             
@@ -1604,7 +1602,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // 休眠状態では動かない
                 this.velocity.x = 0;
                 this.velocity.y = 0;
-                return false; // 休眠状態では以降の処理をスキップ
+                return false;
             }
             
             // 現在の対象がなければ新しい毒素を探す
@@ -1640,22 +1638,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 const distance = Math.sqrt(dx * dx + dy * dy);
 
                 if (distance < 3) {
-                    // 毒素分解処理
-                    if (this.currentTarget.decompositionStage < 2) {
-                        // バクテリアカウントを増加させて分解を促進
-                        this.currentTarget.bacteriaCount++;
-                        
-                        // 分解作業によるエネルギー獲得（効率は酸素量に依存）
-                        const energyGain = 0.002 * this.purificationEfficiency * oxygenFactor;
-                        this.energy = Math.min(1.0, this.energy + energyGain);
-                        
-                        // 分解が進むと繁殖確率が上昇
-                        if (this.energy > 0.7 && Math.random() < 0.01 * oxygenFactor) {
-                            this.reproduce();
-                        }
-                    } else {
-                        // 完全に分解された毒素からは離れる
-                        this.currentTarget = null;
+                    foundToxic = true;
+                    this.currentTarget.bacteriaCount++;
+                    
+                    // エネルギー獲得（効率は酸素量に依存）
+                    const energyGain = 0.002 * this.purificationEfficiency * oxygenFactor;
+                    this.energy = Math.min(1.0, this.energy + energyGain);
+                    
+                    // 繁殖判定を追加
+                    if (this.energy > 0.7 && Math.random() < 0.05 * oxygenFactor) {
+                        this.reproduce();
                     }
                 } else {
                     // 対象に向かって移動（角度ベースの移動を実装）
@@ -1665,23 +1657,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     this.velocity.y = Math.sin(angle) * moveSpeed;
                 }
             } else {
-                // ランダムな移動（角度ベースの移動を実装）
-                if (Math.random() < 0.05 * oxygenFactor) {
-                    const randomAngle = Math.random() * Math.PI * 2;
-                    const randomSpeed = Math.random() * this.speed * oxygenFactor;
-                    this.velocity.x = Math.cos(randomAngle) * randomSpeed;
-                    this.velocity.y = Math.sin(randomAngle) * randomSpeed;
+                // ランダムな移動（より制限された範囲で）
+                if (Math.random() < 0.05) {
+                    this.velocity.x = (Math.random() - 0.5) * 0.1;
+                    this.velocity.y = (Math.random() - 0.5) * 0.1;
                 }
             }
 
-            // 位置の更新と境界チェックの改善
+            // 位置の更新と境界チェック
             this.position.x += this.velocity.x;
             this.position.y += this.velocity.y;
 
-            // 改善された境界チェック
-            const surfaceMargin = 2;
-            const bottomMargin = 3;
-            
             // 水平方向の境界
             if (this.position.x < 0) {
                 this.position.x = 0;
@@ -1692,6 +1678,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             // 垂直方向の境界（水面と底面での特殊な挙動）
+            const surfaceMargin = 2;
+            const bottomMargin = 3;
+            
             if (this.position.y < surfaceMargin) {
                 // 水面付近での挙動
                 const surfaceOxygen = oxygens.getOxygenAt(this.position.x, 0);
@@ -1709,8 +1698,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.velocity.y *= -0.3;
             }
 
-            // エネルギー消費と繁殖判定は変更なし
-            // ... existing code ...
+            // 自然な繁殖判定を追加（エネルギーと酸素が十分にある場合）
+            if (this.energy > 0.8 && this.oxygenReserve > 0.4 && Math.random() < 0.02) {
+                this.reproduce();
+            }
+
+            return false;
         }
 
         reproduce() {
@@ -1759,9 +1752,9 @@ document.addEventListener('DOMContentLoaded', () => {
             this.velocity = { x: 0, y: 0.1, z: 0 };
             this.acceleration = { x: 0, y: 0, z: 0 };
             this.size = size;
-            this.mass = size * 0.8;
-            this.buoyancy = size * 0.3;
-            this.dragCoefficient = 0.2;
+            this.mass = size * 1.2;  // 質量を増加（0.8から1.2に）
+            this.buoyancy = size * 0.2;  // 浮力を減少（0.3から0.2に）
+            this.dragCoefficient = 0.15;  // 抵抗係数を調整（0.2から0.15に）
             this.age = 0;
             this.maxAge = 1000 + Math.floor(Math.random() * 500);
             this.decompositionProgress = 0;
@@ -1770,16 +1763,17 @@ document.addEventListener('DOMContentLoaded', () => {
             this.isCompost = false;
             this.compostNutrientValue = 0;
             this.color = {
-                hue: 30, // 茶色
+                hue: 30,
                 saturation: 60,
                 lightness: 30,
                 opacity: 70
             };
-            this.stackHeight = 0; // 堆積の高さを追跡
-            this.maxLocalDensity = 3; // 最大局所密度を定義
-            this.upwardMoveSpeed = 0.5; // 上方向への移動速度
-            this.decompositionRate = 0.003; // 基本分解速度を追加
-            this.bacteriaEfficiency = 1.2; // バクテリアの効率係数を追加
+            this.stackHeight = 0;
+            this.maxLocalDensity = 3;
+            this.upwardMoveSpeed = 0.5;
+            this.decompositionRate = 0.003;
+            this.bacteriaEfficiency = 1.2;
+            this.settlingTime = 0;  // 沈殿時間を追加
         }
 
         // 周囲の堆肥の濃度をチェック
@@ -1805,26 +1799,55 @@ document.addEventListener('DOMContentLoaded', () => {
         applyPhysics() {
             if (this.isSettled) return;
 
-            const gravity = 0.01 * this.mass;
+            // 重力の影響を強化
+            const gravity = 0.03 * this.mass;
+            this.acceleration.y += gravity;
+
+            // 浮力の影響を弱める
             const depth = this.position.y / height;
-            const buoyancyForce = -0.005 * this.buoyancy * (depth + 0.2);
+            const buoyancyForce = -gravity * this.buoyancy * 0.3;
+            this.acceleration.y += buoyancyForce;
             
+            // 水の抵抗力を調整
             const dragForce = {
-                x: -this.velocity.x * this.dragCoefficient,
-                y: -this.velocity.y * this.dragCoefficient,
-                z: 0
+                x: -this.velocity.x * this.dragCoefficient * 1.2,
+                y: -this.velocity.y * this.dragCoefficient * 0.8
             };
             
-            this.acceleration.y = gravity + buoyancyForce + dragForce.y;
-            this.acceleration.x = dragForce.x;
+            this.acceleration.x += dragForce.x;
+            this.acceleration.y += dragForce.y;
             
-            // 底面または堆積した堆肥との衝突判定
+            // 底面との衝突判定と堆積処理を改善
             if (this.position.y >= height - 2) {
                 this.position.y = height - 1;
-                this.velocity = { x: 0, y: 0, z: 0 };
-                this.acceleration = { x: 0, y: 0, z: 0 };
-                this.isSettled = true;
+                this.velocity.y *= -0.1;
+                this.velocity.x *= 0.7;
+                
+                // 沈殿時間をカウント
+                this.settlingTime++;
+                
+                // 速度が十分小さく、一定時間経過したら定着
+                if (Math.abs(this.velocity.y) < 0.01 && 
+                    Math.abs(this.velocity.x) < 0.01 &&
+                    this.settlingTime > 30) {
+                    this.isSettled = true;
+                    this.velocity = { x: 0, y: 0, z: 0 };
+                }
+            } else {
+                this.settlingTime = 0;
             }
+
+            // 速度の更新（より自然な動きに）
+            this.velocity.x = Math.max(-0.5, Math.min(0.5, this.velocity.x + this.acceleration.x));
+            this.velocity.y = Math.max(-0.8, Math.min(0.8, this.velocity.y + this.acceleration.y));
+            
+            // 位置の更新
+            this.position.x += this.velocity.x;
+            this.position.y += this.velocity.y;
+
+            // 加速度をリセット
+            this.acceleration.x = 0;
+            this.acceleration.y = 0;
         }
 
         update(bacteria, anaerobicBacteria, plantDebris) {
@@ -2600,30 +2623,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     foundDebris = true;
                     this.currentTarget.anaerobicBacteriaCount++;
                     
-                    // エネルギー消費と獲得（深度効率に応じて）
-                    const energyGain = 0.002 * this.decompositionEfficiency * depthEfficiency;
-                    this.energy += energyGain;
+                    // エネルギー獲得（深度効率に応じて）
+                    const energyGain = 0.003 * depthEfficiency;
+                    this.energy = Math.min(1.0, this.energy + energyGain);
                     
-                    // 分解進行度を増加
-                    const decompositionIncrease = 0.005 * this.decompositionEfficiency * depthEfficiency;
-                    this.currentTarget.decompositionProgress += decompositionIncrease;
-                    
-                    // 堆肥への変換をチェック
-                    if (this.currentTarget.decompositionProgress >= 1) {
-                        this.currentTarget.isCompost = true;
-                        this.currentTarget.compostNutrientValue = 0.8 + Math.random() * 0.2; // 栄養価を設定
-                        this.currentTarget.color = {
-                            hue: 25,
-                            saturation: 70,
-                            lightness: 20,
-                            opacity: 90
-                        };
-                        this.currentTarget = null;
+                    // 繁殖判定を追加（エネルギーと深度効率に基づく）
+                    if (this.energy > 0.7 && Math.random() < 0.05 * depthEfficiency) {
+                        this.reproduce();
                     }
                 } else {
                     // 対象に向かってゆっくり移動（角度ベースの移動を実装）
                     const angle = Math.atan2(dy, dx);
-                    const moveSpeed = 0.1;
+                    const moveSpeed = this.speed * depthEfficiency;
                     this.velocity.x = Math.cos(angle) * moveSpeed;
                     this.velocity.y = Math.sin(angle) * moveSpeed;
                 }
@@ -2635,7 +2646,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            // 位置の更新と改善された境界チェック
+            // 位置の更新と境界チェック
             this.position.x += this.velocity.x;
             this.position.y += this.velocity.y;
 
@@ -2648,7 +2659,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.velocity.x *= -0.5;
             }
             
-            // 垂直方向の境界（より自然な遷移）
+            // 垂直方向の境界（底面付近での特殊な挙動）
             const minDepth = height - 5;
             const maxDepth = height - 1;
             
@@ -2656,14 +2667,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 // 徐々に下方向に移動
                 const depthForce = 0.005 * (1 - depthEfficiency);
                 this.velocity.y += depthForce;
-                this.velocity.y = Math.min(this.velocity.y, 0.1);
             } else if (this.position.y > maxDepth) {
                 this.position.y = maxDepth;
                 this.velocity.y = 0;
             }
 
-            // エネルギー消費と繁殖判定は変更なし
-            // ... existing code ...
+            // 自然な繁殖判定を追加（エネルギーと深度効率が十分な場合）
+            if (this.energy > 0.8 && depthEfficiency > 0.8 && Math.random() < 0.02) {
+                this.reproduce();
+            }
+
+            return false;
         }
 
         reproduce() {
