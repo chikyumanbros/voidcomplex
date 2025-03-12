@@ -5,36 +5,35 @@ document.addEventListener('DOMContentLoaded', () => {
     const height = 90;
     
     // ASCII文字のセット - 単純に密度を表現
-    const asciiChars = '█▓▒░+*·';
+    const asciiChars = '▓▒░+*·';
     
     // 最小限のシミュレーションパラメータ
-    const initialEntityCount = 10;
+    const initialEntityCount = 1;
     const maxEntities = 400;
     const baseEnergyDecay = 0.0005;  // エネルギー消費を抑制
-    const DIVISION_ENERGY_THRESHOLD = 0.5;  // 分裂しきい値を下げる
-    const DIVISION_PROBABILITY = 0.02;      // 分裂確率を上げる
+    const DIVISION_ENERGY_THRESHOLD = 0.6;  // 分裂に必要なエネルギー閾値を0.8から0.6に減少
+    const DIVISION_PROBABILITY = 0.1;      // 分裂確率を0.05から0.1に増加
+    const DIVISION_COOLDOWN = 50;          // 分裂後のクールダウン期間を150から50に短縮
     
     // 時間変数
     let time = 0;
     
     // グローバル変数としてシステム全体のエネルギー総量を定義
-    const TOTAL_SYSTEM_ENERGY = 1000;  // 任意の単位
+    const TOTAL_SYSTEM_ENERGY = 2000;  // 任意の単位
     
     // Entityクラス - 抽象的な「実体」として再定義
     class Entity {
-        constructor(x, y, z, attributes = null) {
+        constructor(x, y, attributes = null) {
             // 位置
             this.position = {
                 x: x !== undefined ? x : Math.random() * width,
-                y: y !== undefined ? y : Math.random() * height,
-                z: z !== undefined ? z : Math.random() * 20 - 10
+                y: y !== undefined ? y : Math.random() * height
             };
             
             // 速度
             this.velocity = {
                 x: (Math.random() - 0.5) * 0.5,
-                y: (Math.random() - 0.5) * 0.5,
-                z: (Math.random() - 0.5) * 0.5
+                y: (Math.random() - 0.5) * 0.5
             };
             
             // 基本属性 - より抽象的なパラメータへ
@@ -85,17 +84,128 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Entityクラスのコンストラクタ内に追加
             this.genome = {
-                // 遺伝子配列（0と1のバイナリ配列）
-                sequence: attributes ? this.encodeAttributes(attributes) : this.generateRandomGenome(),
+                // メタデータ
+                meta: {
+                    version: 1,                    // 遺伝子構造のバージョン
+                    creationTime: time,           // 作成時刻
+                    parentId: null,               // 親のID（分裂/複製時に設定）
+                    mutations: [],                // 変異履歴
+                    generation: 0                 // 世代数
+                },
                 
-                // 遺伝子の発現状態（実際の属性値に変換されたもの）
-                expression: attributes || this.decodeGenome(this.sequence)
+                // コア遺伝子（基本属性を制御）
+                core: {
+                    sequence: this.generateCoreGenome(), // 常に新しいコア遺伝子を生成
+                    expression: null              // デコード後の属性値
+                },
+                
+                // 制御遺伝子（遺伝子発現の制御）
+                regulatory: {
+                    // 発現制御配列
+                    promoters: this.generatePromoters(),     // 発現を促進
+                    inhibitors: this.generateInhibitors(),   // 発現を抑制
+                    
+                    // 環境応答配列
+                    environmentalResponses: this.generateEnvironmentalResponses(),
+                    
+                    // 相互作用制御配列
+                    interactionControls: this.generateInteractionControls()
+                },
+                
+                // 防御遺伝子（免疫系と防御機構）
+                defense: {
+                    // パターン認識配列
+                    patternRecognition: this.generatePatternRecognition(),
+                    
+                    // 免疫応答配列
+                    immuneResponse: this.generateImmuneResponse(),
+                    
+                    // 修復機構配列
+                    repair: this.generateRepairSequence()
+                },
+                
+                // 行動遺伝子（行動パターンの制御）
+                behavior: {
+                    // 基本行動パターン
+                    movement: this.generateMovementPattern(),
+                    
+                    // 社会的行動パターン
+                    social: this.generateSocialPattern(),
+                    
+                    // 探索行動パターン
+                    exploration: this.generateExplorationPattern()
+                }
+            };
+            
+            // Entityクラスに追加する新しい属性
+            this.communication = {
+                // 発信関連
+                transmission: {
+                    energy: 0,          // 発信するエネルギー量
+                    geneSequence: null, // 発信する遺伝子配列
+                    signals: {          // 各種シグナル
+                        presence: 0,    // 存在シグナル
+                        boundary: 0,    // 境界シグナル
+                        geneShare: 0    // 遺伝子共有意思
+                    }
+                },
+                
+                // 受信関連
+                reception: {
+                    buffer: [],        // 受信バッファ
+                    threshold: 0.3,    // 受信閾値
+                    filters: {         // 受信フィルター
+                        energy: true,
+                        genes: true,
+                        signals: true
+                    }
+                },
+                
+                // メモリ関連
+                memory: {
+                    geneArchive: [],   // 受信した遺伝子のアーカイブ
+                    interactions: [],   // 相互作用履歴
+                    successRate: {}    // 交換成功率の記録
+                },
+                
+                // ブロックリスト
+                blocking: {
+                    // ブロックリスト
+                    blockedEntities: new Map(),  // key: entityId, value: {reason: string, timestamp: number}
+                    
+                    // ブロック条件
+                    conditions: {
+                        // エネルギー搾取検知
+                        energyTheft: {
+                            threshold: 0.3,        // エネルギー搾取の閾値
+                            duration: 200          // ブロック継続時間
+                        },
+                        
+                        // 有害な遺伝子検知
+                        harmfulGenes: {
+                            threshold: -0.2,       // 有害度の閾値
+                            duration: 300          // ブロック継続時間
+                        },
+                        
+                        // スパムシグナル検知
+                        signalSpam: {
+                            threshold: 10,         // 単位時間あたりの最大シグナル数
+                            duration: 100          // ブロック継続時間
+                        }
+                    },
+                    
+                    // 免疫記憶
+                    immunity: {
+                        patterns: new Map(),      // 有害パターンの記憶
+                        threshold: 0.7            // 免疫反応の閾値
+                    }
+                }
             };
         }
         
         // 既存のinteractメソッドを維持しながら、情報交換の概念を追加
         interact(entities, environment) {
-            let forces = { x: 0, y: 0, z: 0 };
+            let forces = { x: 0, y: 0 };
             
             // 他の実体を感知
             this.senseEntities(entities);
@@ -104,7 +214,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const boidForces = this.calculateBoidForces();
             forces.x += boidForces.x;
             forces.y += boidForces.y;
-            forces.z += boidForces.z;
             
             // エネルギー交換を実行
             this.exchangeEnergy(entities);
@@ -113,7 +222,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const entityForces = this.reactToEntities();
             forces.x += entityForces.x;
             forces.y += entityForces.y;
-            forces.z += entityForces.z;
             
             // 境界処理
             this.enforceBoundaries(forces);
@@ -124,13 +232,13 @@ document.addEventListener('DOMContentLoaded', () => {
         // boidモデルの力を計算
         calculateBoidForces() {
             if (!this.memory.sensedEntities || this.memory.sensedEntities.length === 0) {
-                return { x: 0, y: 0, z: 0 };
+                return { x: 0, y: 0 };
             }
 
-            const forces = { x: 0, y: 0, z: 0 };
-            const cohesion = { x: 0, y: 0, z: 0 };
-            const alignment = { x: 0, y: 0, z: 0 };
-            const separation = { x: 0, y: 0, z: 0 };
+            const forces = { x: 0, y: 0 };
+            const cohesion = { x: 0, y: 0 };
+            const alignment = { x: 0, y: 0 };
+            const separation = { x: 0, y: 0 };
             
             let totalWeight = 0;
             let separationCount = 0;
@@ -145,19 +253,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 // 結合（中心に向かう力）
                 cohesion.x += other.position.x * weight;
                 cohesion.y += other.position.y * weight;
-                cohesion.z += other.position.z * weight;
                 
                 // 整列（同じ方向に向かう力）
                 alignment.x += other.velocity.x * weight;
                 alignment.y += other.velocity.y * weight;
-                alignment.z += other.velocity.z * weight;
                 
                 // 分離（近すぎる個体から離れる力）
                 if (sensed.distance < 5) {
                     const repulsionStrength = (5 - sensed.distance) / 5;
                     separation.x += sensed.direction.x * repulsionStrength;
                     separation.y += sensed.direction.y * repulsionStrength;
-                    separation.z += sensed.direction.z * repulsionStrength;
                     separationCount++;
                 }
                 
@@ -169,13 +274,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const cohesionStrength = 0.01;
                 forces.x += (cohesion.x / totalWeight - this.position.x) * cohesionStrength;
                 forces.y += (cohesion.y / totalWeight - this.position.y) * cohesionStrength;
-                forces.z += (cohesion.z / totalWeight - this.position.z) * cohesionStrength;
                 
                 // 整列力の正規化と適用
                 const alignmentStrength = 0.05;
                 forces.x += (alignment.x / totalWeight) * alignmentStrength;
                 forces.y += (alignment.y / totalWeight) * alignmentStrength;
-                forces.z += (alignment.z / totalWeight) * alignmentStrength;
             }
 
             // 分離力の適用
@@ -183,7 +286,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const separationStrength = 0.1;
                 forces.x -= separation.x * separationStrength / separationCount;
                 forces.y -= separation.y * separationStrength / separationCount;
-                forces.z -= separation.z * separationStrength / separationCount;
             }
 
             return forces;
@@ -193,8 +295,7 @@ document.addEventListener('DOMContentLoaded', () => {
         receiveSignal(sourcePosition, signalType, intensity) {
             const dx = sourcePosition.x - this.position.x;
             const dy = sourcePosition.y - this.position.y;
-            const dz = sourcePosition.z - this.position.z;
-            const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            const distance = Math.sqrt(dx * dx + dy * dy);
             
             // 距離による減衰
             const attenuatedIntensity = intensity / (1 + distance * distance);
@@ -209,8 +310,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 intensity: attenuatedIntensity,
                 direction: {
                     x: dx / Math.max(0.001, distance),
-                    y: dy / Math.max(0.001, distance),
-                    z: dz / Math.max(0.001, distance)
+                    y: dy / Math.max(0.001, distance)
                 },
                 time: time
             });
@@ -231,12 +331,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             
-            let gradX = 0, gradY = 0, gradZ = 0, totalIntensity = 0;
+            let gradX = 0, gradY = 0, totalIntensity = 0;
             
             for (const signal of this.memory.signalHistory[signalType]) {
                 gradX += signal.direction.x * signal.intensity;
                 gradY += signal.direction.y * signal.intensity;
-                gradZ += signal.direction.z * signal.intensity;
                 totalIntensity += signal.intensity;
             }
             
@@ -244,14 +343,13 @@ document.addEventListener('DOMContentLoaded', () => {
             this.memory.signalGradients[signalType] = {
                 x: totalIntensity > 0 ? gradX / totalIntensity : 0,
                 y: totalIntensity > 0 ? gradY / totalIntensity : 0,
-                z: totalIntensity > 0 ? gradZ / totalIntensity : 0,
                 intensity: totalIntensity / this.memory.signalHistory[signalType].length
             };
         }
         
         // シグナル勾配に基づく力の計算
         processSignalGradients() {
-            const forces = { x: 0, y: 0, z: 0 };
+            const forces = { x: 0, y: 0 };
             
             // 存在シグナルへの反応（混雑回避）
             if (this.memory.signalGradients.presence) {
@@ -260,7 +358,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 forces.x -= grad.x * repulsionStrength * grad.intensity;
                 forces.y -= grad.y * repulsionStrength * grad.intensity;
-                forces.z -= grad.z * repulsionStrength * grad.intensity;
             }
             
             // 境界シグナルへの反応
@@ -272,7 +369,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (grad.intensity > this.signals.boundary) {
                     forces.x -= grad.x * boundaryStrength;
                     forces.y -= grad.y * boundaryStrength;
-                    forces.z -= grad.z * boundaryStrength;
                 }
             }
             
@@ -286,8 +382,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             return {
                 x: (Math.random() - 0.5) * brownianStrength,
-                y: (Math.random() - 0.5) * brownianStrength,
-                z: (Math.random() - 0.5) * brownianStrength
+                y: (Math.random() - 0.5) * brownianStrength
             };
         }
         
@@ -309,8 +404,7 @@ document.addEventListener('DOMContentLoaded', () => {
             environment.returnEnergyAt(this.position, signalProcessingCost);
             
             // 環境からのエネルギー獲得（最大獲得可能量を計算）
-            const depthFactor = Math.max(0, 1 - Math.abs(this.position.z) / 10);
-            const maxExtractableEnergy = 0.02 * this.attributes.energyConversion * depthFactor * subjectiveTimeScale;
+            const maxExtractableEnergy = 0.02 * this.attributes.energyConversion * subjectiveTimeScale;
             
             // 環境から実際にエネルギーを取得（利用可能量に制限される）
             const gainedEnergy = environment.getEnergyAt(this.position, time, maxExtractableEnergy);
@@ -337,7 +431,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const wonderForces = this.processWonder(environment);
             forces.x += wonderForces.x;
             forces.y += wonderForces.y;
-            forces.z += wonderForces.z;
             
             // ブラウン運動による揺らぎ
             const brownian = this.addBrownianMotion();
@@ -345,24 +438,21 @@ document.addEventListener('DOMContentLoaded', () => {
             // 速度の更新（物理的力＋情報的力＋揺らぎ）
             this.velocity.x += forces.x * subjectiveTimeScale + brownian.x;
             this.velocity.y += forces.y * subjectiveTimeScale + brownian.y;
-            this.velocity.z += forces.z * subjectiveTimeScale + brownian.z;
             
             // 速度の減衰
             const friction = 0.95;
             this.velocity.x *= Math.pow(friction, subjectiveTimeScale);
             this.velocity.y *= Math.pow(friction, subjectiveTimeScale);
-            this.velocity.z *= Math.pow(friction, subjectiveTimeScale);
             
             // 位置の更新
             this.position.x += this.velocity.x * subjectiveTimeScale;
             this.position.y += this.velocity.y * subjectiveTimeScale;
-            this.position.z += this.velocity.z * subjectiveTimeScale;
             
             // シグナル強度の更新
             this.signals.presence = 0.3 + this.energy * 0.7;  // エネルギーが高いほど存在感が強い
             this.signals.boundary = Math.min(1.0, 0.2 + this.density * 0.8);  // 密度が高いほど境界が強い
             
-            // 分裂判定
+            // 繁殖判定
             if (this.energy > DIVISION_ENERGY_THRESHOLD && Math.random() < DIVISION_PROBABILITY * subjectiveTimeScale) {
                 this.divide(entities);
             }
@@ -397,65 +487,72 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (this.position.y > height - margin) {
                 forces.y -= boundaryForce;
             }
-            
-            // Z軸の境界
-            if (this.position.z < -10) {
-                forces.z += boundaryForce;
-            } else if (this.position.z > 10) {
-                forces.z -= boundaryForce;
-            }
-            
-            return forces;
         }
         
-        // 分裂（複製）メソッドを追加
+        // 分裂（複製）メソッドを修正
         divide(entities) {
             if (entities.length >= maxEntities) return;
             
             // 分裂によるエネルギーを均等に分配
-            const splitEnergy = this.energy * 0.5;  // 親のエネルギーを半分に
-            this.energy = splitEnergy;              // 親は半分保持
-            
-            // 親の遺伝子を変異させて子の遺伝子を作成
-            const childGenome = this.mutateGenome(this.genome.sequence);
-            
-            // 子の遺伝子を属性に変換
-            const childAttributes = this.decodeGenome(childGenome);
+            const splitEnergy = this.energy * 0.3;  // エネルギー消費を0.5から0.3に減少
+            this.energy = this.energy - splitEnergy;  // 親は70%のエネルギーを保持
             
             // 親の近くにランダムな位置を設定
             const offset = 2;
             const childX = this.position.x + (Math.random() - 0.5) * offset;
             const childY = this.position.y + (Math.random() - 0.5) * offset;
-            const childZ = this.position.z + (Math.random() - 0.5) * offset;
             
             // 新しいエンティティを作成
             const child = new Entity(
                 childX,
                 childY,
-                childZ,
-                childAttributes
+                this.attributes
             );
             
-            // 子エンティティの遺伝子を設定
+            // 子エンティティの遺伝子を設定（新しい遺伝子構造に対応）
             child.genome = {
-                sequence: childGenome,
-                expression: childAttributes
+                meta: {
+                    version: this.genome.meta.version,
+                    creationTime: time,
+                    parentId: this.genome.meta.id,
+                    mutations: [],
+                    generation: this.genome.meta.generation + 1
+                },
+                core: {
+                    sequence: this.mutateGenome([...this.genome.core.sequence]),
+                    expression: null
+                },
+                regulatory: {
+                    promoters: {...this.genome.regulatory.promoters},
+                    inhibitors: {...this.genome.regulatory.inhibitors},
+                    environmentalResponses: {...this.genome.regulatory.environmentalResponses},
+                    interactionControls: {...this.genome.regulatory.interactionControls}
+                },
+                defense: {
+                    patternRecognition: {...this.genome.defense.patternRecognition},
+                    immuneResponse: {...this.genome.defense.immuneResponse},
+                    repair: {...this.genome.defense.repair}
+                },
+                behavior: {
+                    movement: {...this.genome.behavior.movement},
+                    social: {...this.genome.behavior.social},
+                    exploration: {...this.genome.behavior.exploration}
+                }
             };
             
-            // 子エンティティの初期エネルギーを設定（親と同じ量）
+            // 子エンティティの初期エネルギーを設定
             child.energy = splitEnergy;
             
             // シグナル値も遺伝子から生成
             child.signals = {
-                presence: 0.3 + childAttributes.responseRate * 0.7,
-                boundary: 0.2 + childAttributes.structuralIntegrity * 0.8
+                presence: 0.3 + child.attributes.responseRate * 0.7,
+                boundary: 0.2 + child.attributes.structuralIntegrity * 0.8
             };
             
-            // 親の速度を基にした初期速度（わずかにランダム性を加える）
+            // 親の速度を基にした初期速度
             child.velocity = {
                 x: this.velocity.x * 0.8 + (Math.random() - 0.5) * 0.2,
-                y: this.velocity.y * 0.8 + (Math.random() - 0.5) * 0.2,
-                z: this.velocity.z * 0.8 + (Math.random() - 0.5) * 0.2
+                y: this.velocity.y * 0.8 + (Math.random() - 0.5) * 0.2
             };
             
             // エンティティリストに追加
@@ -570,8 +667,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // 距離の計算
                 const dx = other.position.x - this.position.x;
                 const dy = other.position.y - this.position.y;
-                const dz = other.position.z - this.position.z;
-                const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                const distance = Math.sqrt(dx * dx + dy * dy);
                 
                 // センサー感度に基づく検知範囲
                 const detectionRange = 15 * this.attributes.sensorSensitivity;
@@ -583,8 +679,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         distance: distance,
                         direction: {
                             x: dx / Math.max(0.001, distance),
-                            y: dy / Math.max(0.001, distance),
-                            z: dz / Math.max(0.001, distance)
+                            y: dy / Math.max(0.001, distance)
                         },
                         perceivedEnergy: other.energy * (1 - distance / detectionRange) // 距離による減衰
                     });
@@ -654,16 +749,27 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         // 相互作用の記録
-        recordInteraction(type, direction, target, amount, similarity) {
-            if (!this.memory.interactions) this.memory.interactions = [];
-            this.memory.interactions.push({
+        recordInteraction(type, direction, target, details) {
+            this.communication.memory.interactions.push({
                 type: type,
                 direction: direction,
                 target: target,
-                amount: amount,
-                similarity: similarity,
-                time: time
+                details: details,
+                timestamp: time,
+                success: true
             });
+            
+            // 成功率の更新
+            const key = `${type}_${direction}`;
+            if (!this.communication.memory.successRate[key]) {
+                this.communication.memory.successRate[key] = {
+                    success: 0,
+                    total: 0
+                };
+            }
+            
+            this.communication.memory.successRate[key].total++;
+            this.communication.memory.successRate[key].success++;
         }
         
         // 相互作用の事後的な分類（観察のため）
@@ -684,74 +790,168 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // 遺伝的類似度を計算
         calculateGeneticSimilarity(other) {
-            if (!this.genome || !other.genome) return 0;
+            if (!this.genome || !other.genome || !this.genome.core || !other.genome.core) return 0;
             
-            const mySequence = this.genome.sequence;
-            const otherSequence = other.genome.sequence;
+            const mySequence = this.genome.core.sequence;
+            const otherSequence = other.genome.core.sequence;
             
-            // RGBの各要素（24ビットずつ）で類似度を計算
-            const rSimilarity = this.calculateSegmentSimilarity(
-                mySequence.slice(0, 24),
-                otherSequence.slice(0, 24)
-            );
-            const gSimilarity = this.calculateSegmentSimilarity(
-                mySequence.slice(24, 48),
-                otherSequence.slice(24, 48)
-            );
-            const bSimilarity = this.calculateSegmentSimilarity(
-                mySequence.slice(48, 72),
-                otherSequence.slice(48, 72)
+            if (!mySequence || !otherSequence) return 0;
+            
+            // コア遺伝子の類似度（基本属性）
+            const coreSimilarity = this.calculateSegmentSimilarity(
+                mySequence,
+                otherSequence
             );
             
-            // RGB値の類似度の平均を返す
-            return (rSimilarity + gSimilarity + bSimilarity) / 3;
+            // 制御遺伝子の類似度
+            const regulatorySimilarity = this.calculateRegulatorySimilarity(
+                this.genome.regulatory,
+                other.genome.regulatory
+            );
+            
+            // 防御遺伝子の類似度
+            const defenseSimilarity = this.calculateDefenseSimilarity(
+                this.genome.defense,
+                other.genome.defense
+            );
+            
+            // 行動遺伝子の類似度
+            const behaviorSimilarity = this.calculateBehaviorSimilarity(
+                this.genome.behavior,
+                other.genome.behavior
+            );
+            
+            // 重み付けされた総合的な類似度
+            return (
+                coreSimilarity * 0.4 +          // コア遺伝子の重要性を高く
+                regulatorySimilarity * 0.2 +    // 制御遺伝子
+                defenseSimilarity * 0.2 +       // 防御遺伝子
+                behaviorSimilarity * 0.2        // 行動遺伝子
+            );
         }
         
-        // 24ビットセグメント間の類似度を計算
-        calculateSegmentSimilarity(segment1, segment2) {
-            // 各セグメントの数値を計算
-            const value1 = this.binaryToValue(segment1);
-            const value2 = this.binaryToValue(segment2);
+        // 制御遺伝子の類似度を計算
+        calculateRegulatorySimilarity(myRegulatory, otherRegulatory) {
+            if (!myRegulatory || !otherRegulatory) return 0;
             
-            // 値の差の絶対値を取り、類似度に変換（1に近いほど類似）
-            return 1 - Math.abs(value1 - value2);
+            const promoterSimilarity = this.calculateObjectSimilarity(
+                myRegulatory.promoters,
+                otherRegulatory.promoters
+            );
+            
+            const inhibitorSimilarity = this.calculateObjectSimilarity(
+                myRegulatory.inhibitors,
+                otherRegulatory.inhibitors
+            );
+            
+            const environmentalSimilarity = this.calculateObjectSimilarity(
+                myRegulatory.environmentalResponses,
+                otherRegulatory.environmentalResponses
+            );
+            
+            const interactionSimilarity = this.calculateObjectSimilarity(
+                myRegulatory.interactionControls,
+                otherRegulatory.interactionControls
+            );
+            
+            return (
+                promoterSimilarity * 0.25 +
+                inhibitorSimilarity * 0.25 +
+                environmentalSimilarity * 0.25 +
+                interactionSimilarity * 0.25
+            );
         }
         
-        // 遺伝的類似度に基づく相互作用係数を計算
-        calculateInteractionFactor(other) {
-            const similarity = this.calculateGeneticSimilarity(other);
+        // 防御遺伝子の類似度を計算
+        calculateDefenseSimilarity(myDefense, otherDefense) {
+            if (!myDefense || !otherDefense) return 0;
             
-            // 協力・競争・寄生の閾値
-            const COOPERATION_THRESHOLD = 0.8;  // 高い類似度で協力
-            const COMPETITION_THRESHOLD = 0.4;  // 中程度の類似度で競争
-            // 低い類似度（0.4未満）で寄生の可能性
+            const patternSimilarity = this.calculateObjectSimilarity(
+                myDefense.patternRecognition,
+                otherDefense.patternRecognition
+            );
             
-            if (similarity >= COOPERATION_THRESHOLD) {
-                // 協力: エネルギー交換が双方向に可能
-                return {
-                    type: 'cooperation',
-                    factor: (similarity - COOPERATION_THRESHOLD) * 2
-                };
-            } else if (similarity >= COMPETITION_THRESHOLD) {
-                // 競争: 相互に忌避
-                return {
-                    type: 'competition',
-                    factor: -(similarity - COMPETITION_THRESHOLD)
-                };
-            } else {
-                // 寄生: エネルギー交換が一方向に
-                return {
-                    type: 'parasitism',
-                    factor: (COMPETITION_THRESHOLD - similarity) * 1.5
-                };
+            const immuneSimilarity = this.calculateObjectSimilarity(
+                myDefense.immuneResponse,
+                otherDefense.immuneResponse
+            );
+            
+            const repairSimilarity = this.calculateObjectSimilarity(
+                myDefense.repair,
+                otherDefense.repair
+            );
+            
+            return (
+                patternSimilarity * 0.4 +
+                immuneSimilarity * 0.4 +
+                repairSimilarity * 0.2
+            );
+        }
+        
+        // 行動遺伝子の類似度を計算
+        calculateBehaviorSimilarity(myBehavior, otherBehavior) {
+            if (!myBehavior || !otherBehavior) return 0;
+            
+            const movementSimilarity = this.calculateObjectSimilarity(
+                myBehavior.movement,
+                otherBehavior.movement
+            );
+            
+            const socialSimilarity = this.calculateObjectSimilarity(
+                myBehavior.social,
+                otherBehavior.social
+            );
+            
+            const explorationSimilarity = this.calculateObjectSimilarity(
+                myBehavior.exploration,
+                otherBehavior.exploration
+            );
+            
+            return (
+                movementSimilarity * 0.3 +
+                socialSimilarity * 0.4 +
+                explorationSimilarity * 0.3
+            );
+        }
+        
+        // オブジェクト内の配列の類似度を計算するヘルパーメソッド
+        calculateObjectSimilarity(obj1, obj2) {
+            if (!obj1 || !obj2) return 0;
+            
+            const keys = Object.keys(obj1);
+            if (keys.length === 0) return 0;
+            
+            let totalSimilarity = 0;
+            for (const key of keys) {
+                if (obj1[key] && obj2[key]) {
+                    totalSimilarity += this.calculateSegmentSimilarity(obj1[key], obj2[key]);
+                }
             }
+            
+            return totalSimilarity / keys.length;
+        }
+        
+        // 配列セグメント間の類似度を計算（既存のメソッド）
+        calculateSegmentSimilarity(segment1, segment2) {
+            if (!Array.isArray(segment1) || !Array.isArray(segment2)) return 0;
+            
+            const minLength = Math.min(segment1.length, segment2.length);
+            let matchCount = 0;
+            
+            for (let i = 0; i < minLength; i++) {
+                if (segment1[i] === segment2[i]) {
+                    matchCount++;
+                }
+            }
+            
+            return matchCount / minLength;
         }
         
         // Entityクラスに追加するメソッド
         reactToEntities() {
-            if (!this.memory.sensedEntities || this.memory.sensedEntities.length === 0) return { x: 0, y: 0, z: 0 };
+            if (!this.memory.sensedEntities || this.memory.sensedEntities.length === 0) return { x: 0, y: 0 };
             
-            const forces = { x: 0, y: 0, z: 0 };
+            const forces = { x: 0, y: 0 };
             
             // 過去の相互作用の記憶を分析
             const recentInteractions = (this.memory.interactions || [])
@@ -793,12 +993,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     // 接近（捕食または協力の可能性）
                     forces.x += sensed.direction.x * forceMagnitude;
                     forces.y += sensed.direction.y * forceMagnitude;
-                    forces.z += sensed.direction.z * forceMagnitude;
                 } else if (attitude < 0) {
                     // 回避（危険または競争相手）
                     forces.x -= sensed.direction.x * forceMagnitude;
                     forces.y -= sensed.direction.y * forceMagnitude;
-                    forces.z -= sensed.direction.z * forceMagnitude;
                 }
             }
             
@@ -970,6 +1168,686 @@ document.addEventListener('DOMContentLoaded', () => {
             
             return mutatedSequence;
         }
+
+        // エネルギー発信
+        transmitEnergy(targetEntity, amount) {
+            if (this.energy < amount) return false;
+            
+            this.communication.transmission.energy = amount;
+            const success = targetEntity.receiveEnergy(this, amount);
+            
+            if (success) {
+                this.energy -= amount;
+                this.recordInteraction('energy', 'transmit', targetEntity, amount);
+            }
+            
+            return success;
+        }
+
+        // 遺伝子情報の発信
+        transmitGenes(targetEntity, geneType = 'full') {
+            let geneSequence;
+            
+            switch(geneType) {
+                case 'full':
+                    geneSequence = this.genome.sequence;
+                    break;
+                case 'partial':
+                    // ランダムな部分配列を選択
+                    const start = Math.floor(Math.random() * this.genome.sequence.length / 2);
+                    const length = Math.floor(Math.random() * (this.genome.sequence.length - start));
+                    geneSequence = this.genome.sequence.slice(start, start + length);
+                    break;
+                case 'compressed':
+                    geneSequence = this.compressGenes(this.genome.sequence);
+                    break;
+            }
+
+            this.communication.transmission.geneSequence = geneSequence;
+            const success = targetEntity.receiveGenes(this, geneSequence, geneType);
+            
+            if (success) {
+                this.recordInteraction('genes', 'transmit', targetEntity, geneType);
+            }
+            
+            return success;
+        }
+
+        // シグナルの発信
+        transmitSignals() {
+            const signals = {
+                presence: 0.3 + this.energy * 0.7,
+                boundary: Math.min(1.0, 0.2 + this.density * 0.8),
+                geneShare: this.calculateGeneShareWillingness()
+            };
+            
+            this.communication.transmission.signals = signals;
+            return signals;
+        }
+
+        // 遺伝子共有意思の計算
+        calculateGeneShareWillingness() {
+            // エネルギー状態、年齢、過去の成功率などから計算
+            const energyFactor = this.energy > 0.7 ? 0.8 : 0.2;
+            const ageFactor = Math.min(1.0, this.age / 500);
+            const successRate = this.getInteractionSuccessRate('genes');
+            
+            return (energyFactor + ageFactor + successRate) / 3;
+        }
+
+        // エネルギー受信
+        receiveEnergy(sourceEntity, amount) {
+            if (!this.communication.reception.filters.energy) return false;
+            
+            // 受入判断
+            const willAccept = this.evaluateEnergyReception(sourceEntity, amount);
+            
+            if (willAccept) {
+                this.energy += amount;
+                this.recordInteraction('energy', 'receive', sourceEntity, amount);
+                return true;
+            }
+            
+            return false;
+        }
+
+        // 遺伝子情報の受信
+        receiveGenes(sourceEntity, geneSequence, geneType) {
+            if (!this.communication.reception.filters.genes) return false;
+            
+            // 受入判断
+            const willAccept = this.evaluateGeneReception(sourceEntity, geneSequence);
+            
+            if (willAccept) {
+                // 遺伝子の保存とポテンシャルな組み込み
+                this.communication.memory.geneArchive.push({
+                    source: sourceEntity,
+                    sequence: geneSequence,
+                    type: geneType,
+                    timestamp: time,
+                    potentialValue: this.evaluateGenePotential(geneSequence)
+                });
+                
+                this.recordInteraction('genes', 'receive', sourceEntity, geneType);
+                
+                // 一定確率で遺伝子の組み込みを試行
+                if (Math.random() < this.calculateGeneIntegrationProbability()) {
+                    this.integrateReceivedGenes();
+                }
+                
+                return true;
+            }
+            
+            return false;
+        }
+
+        // シグナルの受信
+        receiveSignals(sourceEntity, signals) {
+            if (!this.communication.reception.filters.signals) return false;
+            
+            // シグナル強度の距離減衰を計算
+            const distance = this.calculateDistance(sourceEntity);
+            const attenuatedSignals = this.attenuateSignals(signals, distance);
+            
+            // バッファに追加
+            this.communication.reception.buffer.push({
+                source: sourceEntity,
+                signals: attenuatedSignals,
+                timestamp: time
+            });
+            
+            return true;
+        }
+
+            // 受信した遺伝子の統合を試行
+    integrateReceivedGenes() {
+        const recentGenes = this.communication.memory.geneArchive
+            .filter(g => time - g.timestamp < 100)
+            .sort((a, b) => b.potentialValue - a.potentialValue);
+        
+        if (recentGenes.length === 0) return;
+        
+        const targetGene = recentGenes[0];
+        const integrationSuccess = Math.random() < 
+            (targetGene.potentialValue * this.attributes.sensorSensitivity);
+        
+        if (integrationSuccess) {
+            // 遺伝子の部分的な組み込み
+            const newSequence = this.integrateGeneSequence(
+                this.genome.sequence,
+                targetGene.sequence
+            );
+            
+            // 新しい遺伝子の評価と適用
+            const newAttributes = this.decodeGenome(newSequence);
+            if (this.evaluateNewAttributes(newAttributes)) {
+                this.genome.sequence = newSequence;
+                this.attributes = newAttributes;
+            }
+        }
+    }
+
+    // 遺伝子配列の統合
+    integrateGeneSequence(currentSequence, newSequence) {
+        // ランダムな統合ポイントの選択
+        const integrationPoint = Math.floor(Math.random() * currentSequence.length);
+        const integrationLength = Math.min(
+            newSequence.length,
+            currentSequence.length - integrationPoint
+        );
+        
+        // 新しい配列の作成
+        const resultSequence = [...currentSequence];
+        for (let i = 0; i < integrationLength; i++) {
+            if (Math.random() < 0.5) { // 50%の確率で各ビットを統合
+                resultSequence[integrationPoint + i] = newSequence[i];
+            }
+        }
+        
+        return resultSequence;
+    }
+
+    // 遺伝子のポテンシャル評価
+    evaluateGenePotential(sequence) {
+        const attributes = this.decodeGenome(sequence);
+        let potential = 0;
+        
+        // 各属性の改善度を評価
+        for (const key in attributes) {
+            const improvement = attributes[key] - this.attributes[key];
+            potential += improvement > 0 ? improvement : 0;
+        }
+        
+        return Math.min(1.0, potential / Object.keys(attributes).length);
+    }
+
+        // 遺伝子の新しい属性評価
+        evaluateNewAttributes(newAttributes) {
+            // 実装が必要
+            return true; // 仮実装
+        }
+
+        // シグナルの距離減衰を計算
+        calculateDistance(sourceEntity) {
+            const dx = this.position.x - sourceEntity.position.x;
+            const dy = this.position.y - sourceEntity.position.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            return distance;
+        }
+
+        // シグナルの減衰を計算
+        attenuateSignals(signals, distance) {
+            const attenuatedSignals = {
+                presence: signals.presence * (1 - distance / 15),
+                boundary: signals.boundary * (1 - distance / 15),
+                geneShare: signals.geneShare * (1 - distance / 15)
+            };
+            return attenuatedSignals;
+        }
+
+        // 遺伝子の統合確率を計算
+        calculateGeneIntegrationProbability() {
+            // 実装が必要
+            return 0.5; // 仮実装
+        }
+
+        // 相互作用成功率の取得
+        getInteractionSuccessRate(type) {
+            const transmitKey = `${type}_transmit`;
+            const receiveKey = `${type}_receive`;
+            
+            const transmitRate = this.communication.memory.successRate[transmitKey];
+            const receiveRate = this.communication.memory.successRate[receiveKey];
+            
+            if (!transmitRate || !receiveRate) return 0;
+            
+            const totalSuccess = transmitRate.success + receiveRate.success;
+            const totalAttempts = transmitRate.total + receiveRate.total;
+            
+            return totalAttempts > 0 ? totalSuccess / totalAttempts : 0;
+        }
+
+        // ブロック判定と管理のメソッド
+        isBlocked(sourceEntity) {
+            const blockInfo = this.communication.blocking.blockedEntities.get(sourceEntity.id);
+            if (!blockInfo) return false;
+            
+            // ブロック期間が終了していれば解除
+            if (time - blockInfo.timestamp > this.communication.blocking.conditions[blockInfo.reason].duration) {
+                this.communication.blocking.blockedEntities.delete(sourceEntity.id);
+                return false;
+            }
+            
+            return true;
+        }
+
+        // エネルギー搾取の検知
+        detectEnergyTheft(sourceEntity, amount) {
+            const recentInteractions = this.communication.memory.interactions
+                .filter(i => i.target === sourceEntity && i.type === 'energy' && 
+                        time - i.timestamp < 100);
+            
+            let netEnergyLoss = 0;
+            for (const interaction of recentInteractions) {
+                if (interaction.direction === 'give') {
+                    netEnergyLoss += interaction.details;
+                } else {
+                    netEnergyLoss -= interaction.details;
+                }
+            }
+            
+            // 搾取判定
+            if (netEnergyLoss > this.communication.blocking.conditions.energyTheft.threshold) {
+                this.blockEntity(sourceEntity, 'energyTheft');
+                return true;
+            }
+            
+            return false;
+        }
+
+        // 有害な遺伝子の検知
+        detectHarmfulGenes(sourceEntity, geneSequence) {
+            // 遺伝子の評価
+            const potentialImpact = this.evaluateGenePotential(geneSequence);
+            
+            // 有害判定
+            if (potentialImpact < this.communication.blocking.conditions.harmfulGenes.threshold) {
+                // 有害パターンを記憶
+                this.recordHarmfulPattern(geneSequence);
+                this.blockEntity(sourceEntity, 'harmfulGenes');
+                return true;
+            }
+            
+            return false;
+        }
+
+        // シグナルスパムの検知
+        detectSignalSpam(sourceEntity) {
+            const recentSignals = this.communication.reception.buffer
+                .filter(s => s.source === sourceEntity && 
+                        time - s.timestamp < 50).length;
+            
+            if (recentSignals > this.communication.blocking.conditions.signalSpam.threshold) {
+                this.blockEntity(sourceEntity, 'signalSpam');
+                return true;
+            }
+            
+            return false;
+        }
+
+        // 有害パターンの記録と免疫記憶
+        recordHarmfulPattern(geneSequence) {
+            const pattern = this.extractPattern(geneSequence);
+            const currentCount = this.communication.blocking.immunity.patterns.get(pattern) || 0;
+            this.communication.blocking.immunity.patterns.set(pattern, currentCount + 1);
+        }
+
+        // 遺伝子パターンの抽出（特徴的な部分配列の抽出）
+        extractPattern(geneSequence) {
+            // 単純化のため、最初の24ビットを特徴として使用
+            return geneSequence.slice(0, 24).join('');
+        }
+
+        // エンティティのブロック
+        blockEntity(entity, reason) {
+            this.communication.blocking.blockedEntities.set(entity.id, {
+                reason: reason,
+                timestamp: time
+            });
+            
+            // ブロックイベントの記録
+            this.recordInteraction('block', reason, entity, null);
+        }
+
+        // 受信メソッドの修正（既存のreceiveEnergyメソッドを更新）
+        receiveEnergy(sourceEntity, amount) {
+            // ブロック確認
+            if (this.isBlocked(sourceEntity)) return false;
+            
+            // エネルギー搾取の検知
+            if (this.detectEnergyTheft(sourceEntity, amount)) return false;
+            
+            // 既存の処理を継続
+            if (!this.communication.reception.filters.energy) return false;
+            
+            const willAccept = this.evaluateEnergyReception(sourceEntity, amount);
+            if (willAccept) {
+                this.energy += amount;
+                this.recordInteraction('energy', 'receive', sourceEntity, amount);
+                return true;
+            }
+            
+            return false;
+        }
+
+        // 遺伝子受信の修正（既存のreceiveGenesメソッドを更新）
+        receiveGenes(sourceEntity, geneSequence, geneType) {
+            // ブロック確認
+            if (this.isBlocked(sourceEntity)) return false;
+            
+            // 有害遺伝子の検知
+            if (this.detectHarmfulGenes(sourceEntity, geneSequence)) return false;
+            
+            // 免疫チェック
+            const pattern = this.extractPattern(geneSequence);
+            const immunityCount = this.communication.blocking.immunity.patterns.get(pattern) || 0;
+            if (immunityCount > this.communication.blocking.immunity.threshold) {
+                this.blockEntity(sourceEntity, 'harmfulGenes');
+                return false;
+            }
+            
+            // 既存の処理を継続
+            // ... 以下既存のコード ...
+        }
+
+        // シグナル受信の修正（既存のreceiveSignalsメソッドを更新）
+        receiveSignals(sourceEntity, signals) {
+            // ブロック確認
+            if (this.isBlocked(sourceEntity)) return false;
+            
+            // スパム検知
+            if (this.detectSignalSpam(sourceEntity)) return false;
+            
+            // 既存の処理を継続
+            // ... 以下既存のコード ...
+        }
+
+        // 新しい遺伝子生成メソッド群
+        generateCoreGenome() {
+            const sequence = new Array(120);
+            
+            // 開始コドン
+            sequence[0] = 1; sequence[1] = 0; sequence[2] = 1;
+            
+            // 属性エンコード領域（各属性24ビット）
+            for (let i = 3; i < 117; i++) {
+                // より多くの1を生成して明るい色になるようにする
+                sequence[i] = Math.random() < 0.7 ? 1 : 0;
+            }
+            
+            // 終了コドン
+            sequence[117] = 0; sequence[118] = 1; sequence[119] = 0;
+            
+            return sequence;
+        }
+
+        // プロモーター配列の生成
+        generatePromoters() {
+            return {
+                energy: this.generateRegulatorSequence(16),     // エネルギー代謝制御
+                growth: this.generateRegulatorSequence(16),     // 成長制御
+                repair: this.generateRegulatorSequence(16)      // 修復制御
+            };
+        }
+
+        // 抑制配列の生成
+        generateInhibitors() {
+            return {
+                energy: this.generateRegulatorSequence(16),     // エネルギー制限
+                division: this.generateRegulatorSequence(16),   // 分裂制限
+                mutation: this.generateRegulatorSequence(16)    // 変異制限
+            };
+        }
+
+        // 環境応答配列の生成
+        generateEnvironmentalResponses() {
+            return {
+                stress: this.generateRegulatorSequence(24),     // ストレス応答
+                resources: this.generateRegulatorSequence(24),  // 資源応答
+                density: this.generateRegulatorSequence(24)     // 密度応答
+            };
+        }
+
+        // 相互作用制御配列の生成
+        generateInteractionControls() {
+            return {
+                cooperation: this.generateRegulatorSequence(24),  // 協力行動制御
+                competition: this.generateRegulatorSequence(24),  // 競争行動制御
+                defense: this.generateRegulatorSequence(24)       // 防御行動制御
+            };
+        }
+
+        // パターン認識配列の生成
+        generatePatternRecognition() {
+            return {
+                self: this.generateRegulatorSequence(32),       // 自己認識
+                harmful: this.generateRegulatorSequence(32),    // 有害パターン認識
+                beneficial: this.generateRegulatorSequence(32)  // 有益パターン認識
+            };
+        }
+
+        // 免疫応答配列の生成
+        generateImmuneResponse() {
+            return {
+                memory: this.generateRegulatorSequence(32),     // 免疫記憶
+                response: this.generateRegulatorSequence(32),   // 応答パターン
+                adaptation: this.generateRegulatorSequence(32)  // 適応パターン
+            };
+        }
+
+        // 修復配列の生成
+        generateRepairSequence() {
+            return {
+                errorCorrection: this.generateRegulatorSequence(24),  // エラー訂正
+                damage: this.generateRegulatorSequence(24),           // ダメージ修復
+                mutation: this.generateRegulatorSequence(24)          // 変異修復
+            };
+        }
+
+        // 行動パターン配列の生成
+        generateMovementPattern() {
+            return {
+                base: this.generateRegulatorSequence(24),       // 基本移動
+                avoidance: this.generateRegulatorSequence(24),  // 回避行動
+                approach: this.generateRegulatorSequence(24)    // 接近行動
+            };
+        }
+
+        // 社会的行動パターン配列の生成
+        generateSocialPattern() {
+            return {
+                grouping: this.generateRegulatorSequence(24),   // 群れ行動
+                sharing: this.generateRegulatorSequence(24),    // 共有行動
+                signaling: this.generateRegulatorSequence(24)   // シグナル行動
+            };
+        }
+
+        // 探索パターン配列の生成
+        generateExplorationPattern() {
+            return {
+                curiosity: this.generateRegulatorSequence(24),  // 好奇心行動
+                memory: this.generateRegulatorSequence(24),     // 記憶ベース探索
+                risk: this.generateRegulatorSequence(24)        // リスク評価
+            };
+        }
+
+        // 制御配列生成のヘルパーメソッド
+        generateRegulatorSequence(length) {
+            const sequence = new Array(length);
+            
+            // 制御配列の特徴的なパターンを生成
+            for (let i = 0; i < length; i++) {
+                // パターンベースの生成（単純なランダムよりも構造化）
+                if (i % 4 === 0) {
+                    sequence[i] = 1;  // 制御ポイントをマーク
+                } else if (i % 4 === 1) {
+                    sequence[i] = Math.random() < 0.7 ? 1 : 0;  // 高確率で1
+                } else if (i % 4 === 2) {
+                    sequence[i] = Math.random() < 0.3 ? 1 : 0;  // 低確率で1
+                } else {
+                    sequence[i] = Math.random() < 0.5 ? 1 : 0;  // ランダム
+                }
+            }
+            
+            return sequence;
+        }
+
+        // Entityクラスに追加する記憶伝達のメソッド
+
+        // 記憶の発信
+        transmitMemory(targetEntity, memoryType = 'experience') {
+            // 発信する記憶データの準備
+            let memoryData;
+            
+            switch(memoryType) {
+                case 'experience':
+                    memoryData = {
+                        interactions: this.communication.memory.interactions.slice(-10), // 最近の10件
+                        signalHistory: this.memory.signalHistory,
+                        explorationMap: this.wonder.explorationMap
+                    };
+                    break;
+                    
+                case 'immune':
+                    memoryData = {
+                        harmfulPatterns: Array.from(this.communication.blocking.immunity.patterns),
+                        blockedEntities: Array.from(this.communication.blocking.blockedEntities)
+                    };
+                    break;
+                    
+                case 'learning':
+                    memoryData = {
+                        successfulStrategies: this.communication.memory.successRate,
+                        environmentalKnowledge: this.memory.signalGradients
+                    };
+                    break;
+            }
+
+            // 記憶データを通信システムに設定
+            this.communication.transmission.memory = {
+                type: memoryType,
+                data: memoryData,
+                timestamp: time,
+                source: this
+            };
+
+            // 記憶の発信を試行
+            const success = targetEntity.receiveMemory(this, memoryData, memoryType);
+            
+            if (success) {
+                this.recordInteraction('memory', 'transmit', targetEntity, memoryType);
+            }
+            
+            return success;
+        }
+
+        // 記憶の受信
+        receiveMemory(sourceEntity, memoryData, memoryType) {
+            // ブロックされたエンティティからの記憶は受け取らない
+            if (this.isBlocked(sourceEntity)) return false;
+            
+            // 受信フィルターのチェック
+            if (!this.communication.reception.filters.memory) return false;
+            
+            // 記憶の評価（有害な記憶や誤った情報を防ぐ）
+            const memoryTrust = this.evaluateMemoryTrust(sourceEntity, memoryData);
+            if (memoryTrust < this.communication.reception.threshold) return false;
+
+            // 記憶の種類に応じた処理
+            switch(memoryType) {
+                case 'experience':
+                    // 経験の統合
+                    this.integrateExperience(memoryData);
+                    break;
+                    
+                case 'immune':
+                    // 免疫記憶の統合
+                    this.integrateImmuneMemory(memoryData);
+                    break;
+                    
+                case 'learning':
+                    // 学習内容の統合
+                    this.integrateLearning(memoryData);
+                    break;
+            }
+
+            // 記憶の受信を記録
+            this.recordInteraction('memory', 'receive', sourceEntity, memoryType);
+            
+            return true;
+        }
+
+        // 記憶の信頼性評価
+        evaluateMemoryTrust(sourceEntity, memoryData) {
+            let trustScore = 0;
+            
+            // 過去の相互作用履歴からの信頼度
+            const pastInteractions = this.communication.memory.interactions
+                .filter(i => i.target === sourceEntity);
+            
+            if (pastInteractions.length > 0) {
+                const successfulInteractions = pastInteractions
+                    .filter(i => i.success).length;
+                trustScore += successfulInteractions / pastInteractions.length;
+            }
+            
+            // 遺伝的類似度による信頼度
+            const geneticSimilarity = this.calculateGeneticSimilarity(sourceEntity);
+            trustScore += geneticSimilarity * 0.3;
+            
+            // データの一貫性チェック
+            const consistencyScore = this.checkMemoryConsistency(memoryData);
+            trustScore += consistencyScore * 0.3;
+            
+            return trustScore / 1.6; // 0-1の範囲に正規化
+        }
+
+        // 経験の統合
+        integrateExperience(memoryData) {
+            // 相互作用履歴の統合
+            for (const interaction of memoryData.interactions) {
+                if (!this.communication.memory.interactions.some(
+                    i => i.timestamp === interaction.timestamp
+                )) {
+                    this.communication.memory.interactions.push({
+                        ...interaction,
+                        isInherited: true
+                    });
+                }
+            }
+            
+            // 探索マップの統合
+            for (const [cell, value] of Object.entries(memoryData.explorationMap)) {
+                if (!this.wonder.explorationMap[cell]) {
+                    this.wonder.explorationMap[cell] = value * 0.8; // 間接的な経験は割引
+                }
+            }
+        }
+
+        // 免疫記憶の統合
+        integrateImmuneMemory(memoryData) {
+            // 有害パターンの統合
+            for (const [pattern, count] of memoryData.harmfulPatterns) {
+                const currentCount = this.communication.blocking.immunity.patterns.get(pattern) || 0;
+                this.communication.blocking.immunity.patterns.set(
+                    pattern,
+                    Math.max(currentCount, count * 0.7) // 間接的な経験は割引
+                );
+            }
+        }
+
+        // 学習内容の統合
+        integrateLearning(memoryData) {
+            // 成功率の統合
+            for (const [key, rate] of Object.entries(memoryData.successfulStrategies)) {
+                if (!this.communication.memory.successRate[key]) {
+                    this.communication.memory.successRate[key] = {
+                        success: rate.success * 0.7, // 間接的な経験は割引
+                        total: rate.total
+                    };
+                }
+            }
+            
+            // 環境知識の統合
+            for (const [type, gradient] of Object.entries(memoryData.environmentalKnowledge)) {
+                if (!this.memory.signalGradients[type]) {
+                    this.memory.signalGradients[type] = {
+                        ...gradient,
+                        intensity: gradient.intensity * 0.8 // 間接的な経験は割引
+                    };
+                }
+            }
+        }
     }
     
     // 環境クラス - エネルギー場や環境条件を提供
@@ -978,19 +1856,23 @@ document.addEventListener('DOMContentLoaded', () => {
             // 環境のノイズシード
             this.seedX = Math.random() * 1000;
             this.seedY = Math.random() * 1000;
-            this.seedZ = Math.random() * 1000;
             
             // 環境エネルギーフィールドの初期化
-            this.energyField = new Array(width * height);
+            this.energyField = Array(width * height).fill().map(() => ({
+                energy: 0,
+                weight: 0
+            }));
             
             // 初期エネルギー分布の設定
             let totalEntityEnergy = 0;
             for (const entity of entities) {
-                totalEntityEnergy += entity.energy;
+                if (entity && entity.isActive) {
+                    totalEntityEnergy += entity.energy || 0;
+                }
             }
             
             // 残りのエネルギーを環境に分配
-            const environmentEnergy = TOTAL_SYSTEM_ENERGY - totalEntityEnergy;
+            const environmentEnergy = Math.max(0, TOTAL_SYSTEM_ENERGY - totalEntityEnergy);
             this.initializeEnergyField(environmentEnergy);
         }
         
@@ -1046,6 +1928,8 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // エネルギーを環境に戻す
         returnEnergyAt(position, amount) {
+            if (!position || typeof amount !== 'number') return;
+            
             const x = Math.floor(position.x);
             const y = Math.floor(position.y);
             
@@ -1053,6 +1937,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (x < 0 || x >= width || y < 0 || y >= height) return;
             
             const index = y * width + x;
+            if (!this.energyField[index]) {
+                this.energyField[index] = { energy: 0, weight: 0 };
+            }
+            
             this.energyField[index].energy += amount;
         }
         
@@ -1109,11 +1997,11 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // 大腸菌型の初期生命の属性
         const bacterialAttributes = {
-            sensorSensitivity: 0.3,     // 単純な化学走性のみ
+            sensorSensitivity: 0.7,     // より高い感度
             energyConversion: 0.8,      // 高いエネルギー変換効率
             movementEfficiency: 0.7,    // 効率的な運動能力
-            responseRate: 0.4,          // 単純な応答
-            structuralIntegrity: 0.6    // 適度な構造強度
+            responseRate: 0.6,          // より高い応答性
+            structuralIntegrity: 0.8    // より高い構造強度
         };
         
         // 密集度を調整しながらエンティティを配置
@@ -1129,10 +2017,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // 最終位置の計算
             const x = centerX + offsetX;
             const y = centerY + offsetY;
-            const z = Math.random() * 4 - 2;  // Z軸方向の分散を抑制
             
             // エンティティの作成と追加
-            entities.push(new Entity(x, y, z, bacterialAttributes));
+            entities.push(new Entity(x, y, null, bacterialAttributes));
         }
     }
     
@@ -1154,77 +2041,85 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // エンティティの色を計算
     function getEntityColor(entity) {
-        // 遺伝子の特徴を色に反映
-        const genome = entity.genome.sequence;
+        if (!entity.genome || !entity.genome.core || !entity.genome.core.sequence) {
+            // フォールバックの色をより明るく
+            return `rgba(230, 230, 230, ${0.7 + entity.energy * 0.3})`;
+        }
         
-        // RGBの各要素に24ビットずつ割り当て
-        const rSegment = genome.slice(0, 24);
-        const gSegment = genome.slice(24, 48);
-        const bSegment = genome.slice(48, 72);
+        // コア遺伝子配列から色を生成
+        const sequence = entity.genome.core.sequence;
+        const segmentLength = Math.floor(sequence.length / 3);
         
-        // バイナリ配列を16進数に変換
-        const r = Math.floor(entity.binaryToValue(rSegment) * 255);
-        const g = Math.floor(entity.binaryToValue(gSegment) * 255);
-        const b = Math.floor(entity.binaryToValue(bSegment) * 255);
+        // RGBの各要素に配列を分割
+        const rSegment = sequence.slice(0, segmentLength);
+        const gSegment = sequence.slice(segmentLength, segmentLength * 2);
+        const bSegment = sequence.slice(segmentLength * 2, segmentLength * 3);
         
-        // エネルギーレベルをアルファ値として使用
-        const alpha = 0.3 + entity.energy * 0.7;
+        // バイナリ配列を色値に変換（より鮮やかな色になるように調整）
+        const r = Math.floor(180 + entity.binaryToValue(rSegment) * 75); // 180-255の範囲
+        const g = Math.floor(180 + entity.binaryToValue(gSegment) * 75); // 180-255の範囲
+        const b = Math.floor(180 + entity.binaryToValue(bSegment) * 75); // 180-255の範囲
         
-        // RGBA形式で返す
+        // 不透明度を上げて、より見やすく
+        const alpha = 0.8 + entity.energy * 0.2; // 最小0.8、最大1.0
+        
         return `rgba(${r}, ${g}, ${b}, ${alpha})`;
     }
     
     // フレームの描画
     function render() {
-        const zBuffer = initZBuffer();
-        
         // 現在の実時間を取得
         const realTime = performance.now() / 1000;  // 秒単位の実時間
         
         // エンティティの更新
         for (let i = entities.length - 1; i >= 0; i--) {
+            const entity = entities[i];
+            if (!entity || !entity.isActive) {
+                entities.splice(i, 1);
+                continue;
+            }
+            
             // 各エンティティの主観的時間スケールを計算
-            const subjectiveTimeScale = calculateSubjectiveTime(entities[i], realTime);
+            const subjectiveTimeScale = calculateSubjectiveTime(entity, realTime);
             
             // 主観的時間スケールを使用してエンティティを更新
-            entities[i].update(entities, environment, subjectiveTimeScale);
-            
-            if (!entities[i].isActive) {
-                // 不活性エンティティの除去のみ（再生なし）
-                entities.splice(i, 1);
-            }
+            entity.update(entities, environment, subjectiveTimeScale);
         }
         
         // エンティティの描画
+        let output = '';
+        const displayBuffer = Array(width * height).fill(null).map(() => ({
+            char: ' ',
+            color: ''
+        }));
+        
         for (const entity of entities) {
+            if (!entity || !entity.isActive) continue;
+            
             const projectedX = Math.floor(entity.position.x);
             const projectedY = Math.floor(entity.position.y);
-            const z = entity.position.z;
             
             if (projectedX >= 0 && projectedX < width && projectedY >= 0 && projectedY < height) {
                 const bufferIndex = projectedY * width + projectedX;
                 
-                if (z < zBuffer[bufferIndex].depth) {
-                    // 密度とエネルギーに基づく文字選択
-                    const charIndex = Math.floor((entity.density * entity.energy) * (asciiChars.length - 1));
-                    const displayChar = asciiChars[Math.min(Math.max(0, charIndex), asciiChars.length - 1)];
-                    
-                    zBuffer[bufferIndex] = {
-                        char: displayChar,
-                        depth: z,
-                        color: getEntityColor(entity)
-                    };
-                }
+                // 密度とエネルギーに基づく文字選択
+                const charIndex = Math.floor((entity.density * entity.energy) * (asciiChars.length - 1));
+                const displayChar = asciiChars[Math.min(Math.max(0, charIndex), asciiChars.length - 1)];
+                
+                displayBuffer[bufferIndex] = {
+                    char: displayChar,
+                    color: getEntityColor(entity)
+                };
             }
         }
         
-        // Z-bufferから文字列を生成して描画
-        let output = '';
+        // バッファから文字列を生成して描画
         for (let y = 0; y < height; y++) {
             for (let x = 0; x < width; x++) {
                 const index = y * width + x;
-                if (zBuffer[index].char !== ' ') {
-                    output += `<span style="color:${zBuffer[index].color}">${zBuffer[index].char}</span>`;
+                const cell = displayBuffer[index];
+                if (cell.char !== ' ') {
+                    output += `<span style="color:${cell.color}">${cell.char}</span>`;
                 } else {
                     output += '&nbsp;';
                 }
@@ -1246,12 +2141,16 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // エンティティのエネルギー
             for (const entity of entities) {
-                totalEnergy += entity.energy;
+                if (entity && entity.isActive) {
+                    totalEnergy += entity.energy;
+                }
             }
             
             // 環境のエネルギー
             for (const cell of environment.energyField) {
-                totalEnergy += cell.energy;
+                if (cell) {
+                    totalEnergy += cell.energy;
+                }
             }
             
             console.log(`Time: ${time}, Total Energy: ${totalEnergy}, Target: ${TOTAL_SYSTEM_ENERGY}`);
@@ -1259,7 +2158,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // 10FPSに制限
         setTimeout(() => {
-        requestAnimationFrame(render);
+            requestAnimationFrame(render);
         }, 33); // 100ms = 10FPS
     }
     
@@ -1271,14 +2170,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // 属性に基づく時間知覚の違い
         const perceptionFactor = entity.attributes.sensorSensitivity * 0.5 + 0.5;
         
-        // 環境の密度に基づく時間の歪み（例：深さによる）
-        const depthDistortion = Math.abs(entity.position.z) / 10;
-        
         // 実時間と内部時間のギャップに基づく係数
         const timeGapFactor = Math.sin(realTime * 0.1) * 0.2 + 1.0;
         
-        // 最終的な主観的時間スケール（昼夜サイクル要素なし）
-        return energyTimeFactor * perceptionFactor * (1 - depthDistortion * 0.5) * timeGapFactor;
+        // 最終的な主観的時間スケール
+        return energyTimeFactor * perceptionFactor * timeGapFactor;
     }
     
     // シミュレーション開始

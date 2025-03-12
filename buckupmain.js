@@ -8,10 +8,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const asciiChars = '█▓▒░*+∙';
     
     // ライフシミュレーションのパラメータ
-    const initialLifeCount = 10;  // 50から30に減少：植物が十分成長するまでの負荷を減らす
-    const maxLifeforms = 1000;    
-    const energyDecayRate = 0.002;  // 0.003から0.002に減少：初期の生存をより容易に
-    const reproductionThreshold = 0.7;  // 0.8から0.7に減少：繁殖をより容易に
+    const initialLifeCount = 5;  // 10から5に減少
+    const maxLifeforms = 500;    // 1000から500に減少
+    const energyDecayRate = 0.003;  // 0.001から0.003に増加
+    const reproductionThreshold = 0.8;  // 0.6から0.8に増加
     const reproductionCost = 0.3;   // 0.15から0.3に増加
     const mutationRate = 0.1;
     const foodGenerationRate = 0.05;  // 0.08から0.05に減少（食物生成を少し減らす、代わりに捕食が栄養源になる）
@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const initialLifeformDebrisCount = Math.floor(width * height * 0.01); // 画面の3%の量の初期生命体死骸
     
     // 浄化バクテリアのパラメータ
-    const initialBacteriaCount = Math.floor(width * 0.20); // 画面の25%に増加
+    const initialBacteriaCount = Math.floor(width * 0.25); // 画面の25%に増加
     const bacteriaPurificationRate = 0.01; // 毒素の浄化速度
     const bacteriaReproductionRate = 0.005; // 繁殖率を0.003から0.005に増加
     const bacteriaMaxCount = Math.floor(width * 0.20); // 最大数は画面の20%に増加
@@ -57,8 +57,8 @@ document.addEventListener('DOMContentLoaded', () => {
         constructor(x, y, z, energy, dna = null) {
             // 位置を指定された場合のみ使用（ランダム生成を制限）
             this.position = {
-                x: x !== undefined ? x : Math.random() * width,
-                y: y !== undefined ? y : height - 2 - Math.random() * 3,
+                x: x,
+                y: y,
                 z: z || 0
             };
             
@@ -74,7 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // 加速度
             this.acceleration = { x: 0, y: 0, z: 0 };
             
-            // DNAを先に設定
+            // 生命体の特性
             this.dna = dna || {
                 // 基本的な特性
                 speed: 0.3 + Math.random() * 0.3,
@@ -104,8 +104,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 oxygenTolerance: 0.3 + Math.random() * 0.4
             };
             
-            // 捕食者の判定を先に行う
-            this.isPredator = this.dna.predatory > 0.6;
+            // 生命体の状態
+            this.energy = energy !== undefined ? energy : 0.8 + Math.random() * 0.2;
+            this.age = 0;
+            this.isDead = false;
+            this.wasPreyed = false;  // 捕食による死亡を示すフラグを追加
+            this.lastReproductionTime = 0;  // 最後に繁殖した時間
+            
+            // 捕食関連の状態
+            this.lastPredationTime = 0;  // 最後に捕食した時間
+            this.lastPredationAttemptTime = 0;  // 最後に捕食を試みた時間
+            this.isPredator = this.dna.predatory > 0.6;  // 捕食性向が0.6以上なら捕食者
             
             // 生命体の色（DNAに基づく）
             // 捕食者は赤系、被食者は青系
@@ -113,24 +122,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 0 + Math.floor(this.dna.predatory * 60) :  // 赤〜黄色
                 180 + Math.floor((1 - this.dna.predatory) * 60);  // 青〜シアン
             
-            // 生命体の状態
-            this.energy = energy !== undefined ? energy : 0.8 + Math.random() * 0.2;
-            this.age = 0;
-            this.isDead = false;
-            this.wasPreyed = false;
-            this.lastReproductionTime = 0;
-            
-            // 捕食関連の状態
-            this.lastPredationTime = 0;
-            this.lastPredationAttemptTime = 0;
-            
             // 物理特性を更新
             this.mass = this.dna.size * 0.8 + 0.2;
             this.buoyancy = this.dna.size * 0.9 + 0.1;
             this.dragCoefficient = 0.1;
             
             // 捕食性を連続的な特性として扱う
-            this.predatoryBehavior = this.dna.predatory;
+            this.predatoryBehavior = this.dna.predatory; // 0-1の連続値
             
             // 捕食能力に影響する要素を複数組み合わせる
             this.huntingAbility = {
@@ -139,7 +137,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 aggressiveness: this.dna.predatory
             };
 
-            this.toxicDamageResistance = 0.8;
+            this.toxicDamageResistance = 0.8; // 毒素へのダメージ耐性（0-1）
         }
         
         // 捕食の判定をより自然な形に
@@ -157,60 +155,75 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // 色の計算も連続的に
         getDisplayColor() {
-            // 捕食者か被食者かで色相を決定
-            const hue = this.isPredator ? 
-                0 + Math.floor(this.dna.predatory * 60) :  // 赤〜黄色（0-60）
-                180 + Math.floor((1 - this.dna.predatory) * 60);  // 青〜シアン（180-240）
-            
-            // エネルギーレベルに基づく彩度
+            // 捕食性の度合いに応じて連続的に色が変化
+            const hue = 180 + this.predatoryBehavior * 180; // 0=青、1=赤の連続的な変化
             const saturation = 50 + this.energy * 50;
-            
-            // 年齢に基づく明度（若いほど明るい）
-            const ageRatio = Math.min(1, this.age / maxAge);
-            const lightness = 70 - ageRatio * 40;
+            const lightness = 70 - (this.age / this.maxAge) * 40;
             
             return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
         }
         
         // 食物を探す
         seekFood(foods, bacteria) {  // bacteriaパラメータを追加
-            if (!foods) foods = [];
-            if (!bacteria) bacteria = [];
-            
+            let steering = { x: 0, y: 0, z: 0 };
+            let closestDist = Infinity;
             let closestFood = null;
-            let closestDist = this.senseRadius;
-            let force = { x: 0, y: 0, z: 0 };
             
-            // 食物を探す
+            // 知覚範囲を計算
+            const perceptionRadius = 20 * this.dna.perception;
+            
+            // 植物を探す
             for (const food of foods) {
                 const dx = food.position.x - this.position.x;
                 const dy = food.position.y - this.position.y;
                 const dz = food.position.z - this.position.z;
                 const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
                 
-                if (distance < closestDist) {
+                if (distance < perceptionRadius && distance < closestDist) {
                     closestDist = distance;
                     closestFood = food;
                 }
             }
-            
-            // 最も近い食物に向かって移動
-            if (closestFood) {
-                const dx = closestFood.position.x - this.position.x;
-                const dy = closestFood.position.y - this.position.y;
-                const dz = closestFood.position.z - this.position.z;
+
+            // バクテリアも食物として探す
+            for (const bacterium of bacteria) {
+                const dx = bacterium.position.x - this.position.x;
+                const dy = bacterium.position.y - this.position.y;
+                const dz = bacterium.position.z - this.position.z;
                 const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
                 
-                // 斜め移動を強化するために角度ベースの移動を実装
-                const angle = Math.atan2(dy, dx);
-                const moveForce = 0.01 * this.dna.speed;
-                
-                force.x = Math.cos(angle) * moveForce;
-                force.y = Math.sin(angle) * moveForce;
-                force.z = dz / distance * moveForce * 0.5;
+                if (distance < perceptionRadius && distance < closestDist) {
+                    closestDist = distance;
+                    closestFood = bacterium;
+                }
             }
             
-            return force;
+            if (closestFood) {
+                // 最も近い食物に向かうベクトル
+                steering.x = closestFood.position.x - this.position.x;
+                steering.y = closestFood.position.y - this.position.y;
+                steering.z = closestFood.position.z - this.position.z;
+                
+                // ベクトルの正規化
+                const magnitude = Math.sqrt(
+                    steering.x * steering.x + 
+                    steering.y * steering.y + 
+                    steering.z * steering.z
+                );
+                
+                if (magnitude > 0) {
+                    steering.x = (steering.x / magnitude) * this.dna.speed;
+                    steering.y = (steering.y / magnitude) * this.dna.speed;
+                    steering.z = (steering.z / magnitude) * this.dna.speed;
+                }
+                
+                // 食物への引力を適用
+                steering.x *= this.dna.foodAttraction;
+                steering.y *= this.dna.foodAttraction;
+                steering.z *= this.dna.foodAttraction;
+            }
+            
+            return steering;
         }
         
         // 他の生命体との相互作用（捕食を含む）
@@ -560,81 +573,34 @@ document.addEventListener('DOMContentLoaded', () => {
             // 酸素消費と二酸化炭素生成の処理
             let oxygenAvailable = false;
             let consumedOxygen = 0;
-            let suffocating = true;
-
+            let suffocating = true; // 窒息状態のフラグ
+            
             // 現在位置の酸素を消費
             const currentOxygen = getOxygenAt(this.position.x, this.position.y);
-            const baseOxygenNeed = 0.03; // さらに減少（0.05→0.03）：基本必要量を大幅に緩和
-            const neededOxygen = baseOxygenNeed * (1 - this.dna.oxygenEfficiency * 0.7); // 0.5→0.7：DNAの影響をより強く
-
-            // 最低酸素濃度の閾値をさらに下げる
-            const minOxygenThreshold = 0.01; // 0.02→0.01：極限状態でも生存可能に
-
-            if (currentOxygen >= minOxygenThreshold) {
+            const baseOxygenNeed = 0.04; // 基本酸素必要量を適度に調整（0.05から0.04に）
+            const neededOxygen = baseOxygenNeed * (1 - this.dna.oxygenEfficiency * 0.4); // 効率の影響を40%に緩和
+            
+            if (currentOxygen > 0) {
                 consumedOxygen = Math.min(neededOxygen, currentOxygen);
                 changeOxygenAt(this.position.x, this.position.y, -consumedOxygen);
                 oxygenAvailable = true;
-                suffocating = consumedOxygen < neededOxygen * 0.3; // 0.4→0.3：窒息判定をさらに緩和
-            } else {
-                suffocating = true;
-                this.energy -= energyDecayRate * 2; // 4→2：ペナルティをさらに緩和
-            }
-
-            // 酸欠による死亡判定をさらに緩和
-            if (suffocating) {
-                this.suffocationTime = (this.suffocationTime || 0) + 1;
-                // 酸欠耐性時間を大幅に延長
-                const maxSuffocationTime = 400 + (this.dna.oxygenTolerance * 200); // 基本値を2倍に
+                suffocating = consumedOxygen < neededOxygen * 0.6; // 必要量の60%以下で窒息状態に（70%から緩和）
                 
-                // 深度に応じた耐性ボーナス（深いところにいる生物はより耐性が高い）
-                const depthBonus = Math.min(200, (this.position.y / height) * 300);
-                const adjustedMaxTime = maxSuffocationTime + depthBonus;
-                
-                if (this.suffocationTime > adjustedMaxTime) {
-                    this.isDead = true;
-                    return;
-                }
-                
-                // エネルギー消費をより緩やかに
-                const suffocationPenalty = Math.min(2, 0.5 + (this.suffocationTime / 200)); // より緩やかなペナルティ上昇
-                this.energy -= energyDecayRate * suffocationPenalty;
-                
-                // 酸欠時の行動変化
-                if (this.suffocationTime > 100) {
-                    // 水面方向への移動を促進
-                    this.velocity.y -= 0.01;
-                }
-            } else {
-                // 回復をさらに早く
-                this.suffocationTime = Math.max(0, this.suffocationTime - 4); // 2→4：より早い回復
-            }
-
-            // 窒息状態の視覚的な変化をより緩やかに
-            if (suffocating) {
-                this.suffocationLevel = Math.min(1, this.suffocationLevel + 0.02); // 0.05→0.02
-            } else {
-                this.suffocationLevel = Math.max(0, this.suffocationLevel - 0.04); // 0.03→0.04
-            }
-
-            // 酸素が少ない環境での適応メカニズム
-            if (this.suffocationTime > 50) {
-                // エネルギー消費を抑える（代謝を下げる）
-                this.velocity.x *= 0.95;
-                this.velocity.y *= 0.95;
-                
-                // 繁殖を抑制
-                this.dna.reproductionRate *= 0.9;
-            }
-
-            // 高酸素環境での回復強化
-            if (currentOxygen > 0.1 && !suffocating) {
-                this.energy += this.dna.regenerationRate * 1.5;
-                this.energy = Math.min(this.energy, 1.0);
+                // CO2を生成（消費した酸素量に応じて）
+                const co2Amount = consumedOxygen * 1.1; // CO2生成量を適度に調整（1.2から1.1に）
+                changeCO2At(this.position.x, this.position.y, co2Amount);
             }
             
-            // CO2を生成（消費した酸素量に応じて）
-            const co2Amount = consumedOxygen * 1.1; // CO2生成量を適度に調整（1.2から1.1に）
-            changeCO2At(this.position.x, this.position.y, co2Amount);
+            // 窒息状態の場合、エネルギー消費が増加
+            if (suffocating) {
+                this.energy -= energyDecayRate * 4; // ペナルティを適度に調整（5倍から4倍に）
+                
+                // 窒息による色の変化を調整
+                this.suffocationLevel = Math.min(1, this.suffocationLevel + 0.07); // 0.1から0.07に緩和
+            } else {
+                // 窒息状態からの回復を調整
+                this.suffocationLevel = Math.max(0, this.suffocationLevel - 0.015); // 0.01から0.015に回復速度を上昇
+            }
             
             // 周囲のCO2濃度が高すぎる場合の処理
             let highCO2 = false;
@@ -650,7 +616,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // CO2濃度が高い場合のペナルティを調整
             if (highCO2) {
-                this.energy -= 0.04 * (1 - this.dna.oxygenTolerance); // 0.025から0.04に増加
+                this.energy -= 0.025 * (1 - this.dna.oxygenTolerance); // 0.03から0.025に緩和
             }
             
             // 自然回復（酸素が十分にある場合のみ）
@@ -690,12 +656,10 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const maxSpeed = 0.5 * this.dna.speed;
             
-            if (speed > maxSpeed) {
-                // 方向を維持しながら速度を制限
-                const angle = Math.atan2(this.velocity.y, this.velocity.x);
-                this.velocity.x = Math.cos(angle) * maxSpeed;
-                this.velocity.y = Math.sin(angle) * maxSpeed;
-                this.velocity.z = (this.velocity.z / speed) * maxSpeed * 0.5;
+                if (speed > maxSpeed) {
+                    this.velocity.x = (this.velocity.x / speed) * maxSpeed;
+                    this.velocity.y = (this.velocity.y / speed) * maxSpeed;
+                    this.velocity.z = (this.velocity.z / speed) * maxSpeed;
             }
             
             // 位置を更新
@@ -868,7 +832,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const contactThreshold = (this.size + 1) * 0.5;
                 if (distance < contactThreshold) {
                     // 毒性に応じたダメージを計算
-                    const toxicDamage = toxic.toxicity * 0.08 * (1 - this.toxicDamageResistance); // 0.05から0.08に増加
+                    const toxicDamage = toxic.toxicity * 0.05 * (1 - this.toxicDamageResistance);
                     totalDamage += toxicDamage;
                 }
 
@@ -899,9 +863,9 @@ document.addEventListener('DOMContentLoaded', () => {
             this.reproductionThreshold = 0.6;
             this.lastReproductionTime = 0;
             this.height = 0;
-            this.maxHeight = 40 + Math.random() * 60;  // 最大高さを40-100に半減
+            this.maxHeight = 80 + Math.random() * 120;  // 最大高さを80-200に増加
             this.growthHeight = 0;
-            this.maxGrowthHeight = 30 + Math.random() * 45;  // 成長高さを30-75に半減
+            this.maxGrowthHeight = 60 + Math.random() * 90;  // 成長高さを60-150に増加
             
             // 物理特性を更新
             this.mass = this.size * 0.8 + 0.2;
@@ -1180,7 +1144,7 @@ document.addEventListener('DOMContentLoaded', () => {
             this.lastReproductionTime = time;
             
             // 繁殖方向をランダムに選択（横または上）
-            const isVerticalGrowth = Math.random() < 0.2; // 20%から10%に減少（上方向への成長をさらに抑制）
+            const isVerticalGrowth = Math.random() < 0.1; // 20%から10%に減少（上方向への成長をさらに抑制）
             
             if (isVerticalGrowth && this.position.y > height * 0.7) { // 下層70%以下でのみ上方向に成長可能
                 // 上方向への繁殖距離を短く
@@ -1525,8 +1489,8 @@ document.addEventListener('DOMContentLoaded', () => {
             this.oxygenEfficiency = 0.4 + Math.random() * 0.4;
             this.oxygenReserve = 0.5;
             this.maxOxygenReserve = 1.0;
-            this.oxygenConsumptionRate = 0.015; // 酸素消費率を0.008から0.015に増加
-            this.co2ProductionRate = 0.012; // CO2生成率を0.006から0.012に増加
+            this.oxygenConsumptionRate = 0.008; // 酸素消費率を増加
+            this.co2ProductionRate = 0.006; // CO2生成率を追加（酸素消費率より少し低めに）
             this.speed = 0.3;
         }
 
@@ -1538,7 +1502,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const currentOxygen = oxygens.getOxygenAt(this.position.x, this.position.y);
             
             if (currentOxygen > 0) {
-                const consumedAmount = Math.min(currentOxygen, 0.02); // 0.01から0.02に増加
+                const consumedAmount = Math.min(currentOxygen, 0.01);
                 oxygens.changeOxygenAt(this.position.x, this.position.y, -consumedAmount);
                 this.oxygenReserve = Math.min(this.maxOxygenReserve, this.oxygenReserve + consumedAmount * 0.8);
                 return consumedAmount > 0;
@@ -1589,7 +1553,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // 酸素不足によるダメージ
             if (this.oxygenReserve < 0.1) {
-                this.energy -= 0.005 * (1 - this.oxygenReserve * 10); // 0.002から0.005に増加
+                this.energy -= 0.002 * (1 - this.oxygenReserve * 10);
             }
 
             // 死亡条件をチェック
@@ -1597,14 +1561,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.age >= this.maxAge || // 寿命
                 this.oxygenReserve <= 0) { // 酸素不足による死亡
                 return true;
-            }
-            
-            // 酸素不足時は休眠状態になる（活動停止）
-            if (this.oxygenReserve < 0.05) {
-                // 休眠状態では動かない
-                this.velocity.x = 0;
-                this.velocity.y = 0;
-                return false; // 休眠状態では以降の処理をスキップ
             }
             
             // 現在の対象がなければ新しい毒素を探す
@@ -1640,37 +1596,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 const distance = Math.sqrt(dx * dx + dy * dy);
 
                 if (distance < 3) {
-                    // 毒素分解処理
-                    if (this.currentTarget.decompositionStage < 2) {
-                        // バクテリアカウントを増加させて分解を促進
-                        this.currentTarget.bacteriaCount++;
-                        
-                        // 分解作業によるエネルギー獲得（効率は酸素量に依存）
-                        const energyGain = 0.002 * this.purificationEfficiency * oxygenFactor;
-                        this.energy = Math.min(1.0, this.energy + energyGain);
-                        
-                        // 分解が進むと繁殖確率が上昇
-                        if (this.energy > 0.7 && Math.random() < 0.01 * oxygenFactor) {
-                            this.reproduce();
-                        }
-                    } else {
-                        // 完全に分解された毒素からは離れる
-                        this.currentTarget = null;
-                    }
+                    // 分解作業中の処理は変更なし
+                    // ... existing code ...
                 } else {
-                    // 対象に向かって移動（角度ベースの移動を実装）
-                    const angle = Math.atan2(dy, dx);
-                    const moveSpeed = this.speed * oxygenFactor;
-                    this.velocity.x = Math.cos(angle) * moveSpeed;
-                    this.velocity.y = Math.sin(angle) * moveSpeed;
+                    // 対象に向かって移動（速度を増加）
+                    this.velocity.x = (dx / distance) * this.speed * oxygenFactor;
+                    this.velocity.y = (dy / distance) * this.speed * oxygenFactor;
                 }
             } else {
-                // ランダムな移動（角度ベースの移動を実装）
+                // ランダムな移動（速度を増加）
                 if (Math.random() < 0.05 * oxygenFactor) {
-                    const randomAngle = Math.random() * Math.PI * 2;
-                    const randomSpeed = Math.random() * this.speed * oxygenFactor;
-                    this.velocity.x = Math.cos(randomAngle) * randomSpeed;
-                    this.velocity.y = Math.sin(randomAngle) * randomSpeed;
+                    this.velocity.x = (Math.random() - 0.5) * this.speed * oxygenFactor;
+                    this.velocity.y = (Math.random() - 0.5) * this.speed * oxygenFactor;
                 }
             }
 
@@ -1959,13 +1896,13 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // 基準となる初期DNAを定義
     const initialDNA = {
-        speed: 0.6,          // 中央値を使用
+        speed: 0.45,          // 中央値を使用
         efficiency: 0.65,     // 中央値を使用
         perception: 0.6,      // 中央値を使用
         foodAttraction: 0.75, // 中央値を使用
-        socialBehavior: 0.5,    // 中立的な値を使用
-        reproductionRate: 0.4, // 中央値を使用
-        predatory: 0.6,       // やや低めの捕食性
+        socialBehavior: 0,    // 中立的な値を使用
+        reproductionRate: 0.25, // 中央値を使用
+        predatory: 0.3,       // やや低めの捕食性
         size: 0.4,           // 中央値を使用
         
         // Boidの動きに関する特性
@@ -1986,80 +1923,25 @@ document.addEventListener('DOMContentLoaded', () => {
         oxygenTolerance: 0.5
     };
     
-    // 初期生命体を生成
+    // 初期生命体を同一DNAで生成
     for (let i = 0; i < initialLifeCount; i++) {
         const x = Math.random() * width;
         const y = height * (0.2 + Math.random() * 0.6);
-        
-        // DNAをコピーして捕食性を明確に設定
-        const dna = {...initialDNA};
-        // 半数を捕食者に、半数を被食者に
-        dna.predatory = i < initialLifeCount / 2 ? 0.8 + Math.random() * 0.2 : 0.2 + Math.random() * 0.2;
-        
-        lifeforms.push(new Lifeform(x, y, 0, 0.9, dna));
+        lifeforms.push(new Lifeform(x, y, 0, 0.9, {...initialDNA}));  // DNAをコピーして使用
     }
     
-    // 植物の初期生成をさらに調整
-    const initialPlantCount = Math.floor(width * 0.4); // 0.3から0.4に増加：より多くの植物から開始
+    // 植物の初期生成を調整
+    const initialPlantCount = Math.floor(width * 0.3); // 0.5から0.3に減少
     for (let i = 0; i < initialPlantCount; i++) {
         // より均一に分布するように配置
-        const x = (i / initialPlantCount) * width + (Math.random() - 0.5) * 5; // ばらつきを5に減少
-        const y = height - 1 - Math.random() * 2;
+        const x = (i / initialPlantCount) * width + (Math.random() - 0.5) * 10; // 少しランダム性を持たせる
+        const y = height - 1 - Math.random() * 2; // より底面に近く、薄い層に
         
-        // さらに成長した状態で生成
-        const plant = new Plant(x, y, 0, 0.9); // 0.7から0.9に増加：より高いエネルギー
-        
-        // より大きな初期サイズと成長状態
-        plant.size = 0.2 + Math.random() * 0.15; // 0.15-0.25から0.2-0.35に増加
-        plant.maxSize = 0.4 + Math.random() * 0.2; // 0.3-0.5から0.4-0.6に増加
-        
-        // より高い初期成長高さ
-        plant.growthHeight = 20 + Math.random() * 20; // 20-40に半減
-        plant.maxGrowthHeight = 50 + Math.random() * 50; // 50-100に半減
-        
-        // 健康状態を最大に
-        plant.health = 1.0;
-        plant.maxHealth = 1.0;
-        
-        // 初期の根の強さを増加
-        plant.rootStrength = 0.98; // 0.95から0.98に増加
-        
+        // 初期の植物をより小さく、成長の余地を持たせる
+        const plant = new Plant(x, y, 0, 0.5);
+        plant.size = 0.05 + Math.random() * 0.1; // より小さな初期サイズ
+        plant.maxSize = 0.2 + Math.random() * 0.3; // 最大サイズも抑えめに
         plants.push(plant);
-    }
-    
-    // 初期酸素濃度も植物の存在に合わせて調整
-    for (let x = 0; x < gridWidth; x++) {
-        for (let y = 0; y < gridHeight; y++) {
-            // 上部ほど酸素濃度が高い
-            const heightFactor = 1 - (y / gridHeight);
-            oxygenMap[x][y] = initialOxygenDensity * (1.0 + heightFactor * 0.5); // 0.8から1.0に増加
-            
-            // 下部ほど二酸化炭素濃度が高い
-            const depthFactor = y / gridHeight;
-            co2Map[x][y] = initialCO2Density * (0.7 + depthFactor * 0.5); // 0.6から0.7に増加
-        }
-    }
-    
-    // 初期の堆肥も追加して栄養豊富な環境を作る
-    const initialCompostCount = Math.floor(width * 0.1); // 初期堆肥を追加
-    for (let i = 0; i < initialCompostCount; i++) {
-        const x = Math.random() * width;
-        const y = height - 1 - Math.random() * 2;
-        const debris = new PlantDebris(x, y, 0, 0.2 + Math.random() * 0.2);
-        
-        // 完全に分解された堆肥として設定
-        debris.isSettled = true;
-        debris.decompositionProgress = 1;
-        debris.isCompost = true;
-        debris.compostNutrientValue = 0.7 + Math.random() * 0.3; // 高い栄養価
-        debris.color = {
-            hue: 25,
-            saturation: 70,
-            lightness: 15,
-            opacity: 90
-        };
-        
-        plantDebris.push(debris);
     }
     
     // Z-bufferを初期化
@@ -2078,18 +1960,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // 生命体の色計算を元に戻す
     function getColor(lifeform) {
         // 基本色相（捕食者か被食者かで異なる）
-        const hue = lifeform.isPredator ? 
-            0 + Math.floor(lifeform.dna.predatory * 60) :  // 赤〜黄色
-            180 + Math.floor((1 - lifeform.dna.predatory) * 60);  // 青〜シアン
+        const hue = lifeform.baseHue;
         
         // エネルギーレベルに基づく彩度
-        const saturation = 50 + lifeform.energy * 50;
+        const saturation = 50 + lifeform.energy * 50;  // 元の値に戻す
         
         // 年齢に基づく明度（若いほど明るい）
         const ageRatio = Math.min(1, lifeform.age / maxAge);
-        const lightness = 70 - ageRatio * 40;
+        const lightness = 70 - ageRatio * 40;  // 元の値に戻す
         
-        return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+        return `hsl(${hue}, ${saturation}%, ${lightness}%)`;  // 不透明度は使用しない
     }
     
     // 植物の色計算を修正
@@ -2123,29 +2003,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     changeOxygenAt: changeOxygenAt || function(x, y, amount) {}
                 })) {
                     bacteria.splice(i, 1);
-                }
-            }
-            
-            // 毒素を更新
-            for (let i = toxicMatters.length - 1; i >= 0; i--) {
-                if (toxicMatters[i].update(plants, toxicMatters)) {
-                    toxicMatters.splice(i, 1);
-                }
-            }
-            
-            // 植物の死骸を更新
-            for (let i = plantDebris.length - 1; i >= 0; i--) {
-                if (plantDebris[i].update(bacteria, anaerobicBacteria, plantDebris)) {
-                    plantDebris.splice(i, 1);
-                }
-            }
-            
-            // 嫌気性バクテリアを更新
-            for (let i = anaerobicBacteria.length - 1; i >= 0; i--) {
-                if (anaerobicBacteria[i].update(plantDebris, {
-                    getOxygenAt: getOxygenAt || function(x, y) { return 0.2; }
-                })) {
-                    anaerobicBacteria.splice(i, 1);
                 }
             }
             
@@ -2269,7 +2126,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     zBuffer[bufferIndex] = {
                         char: displayChar,
                         depth: z,
-                        color: lifeform.getDisplayColor()
+                        color: getColor(lifeform)
                     };
                 }
             }
@@ -2280,8 +2137,7 @@ document.addEventListener('DOMContentLoaded', () => {
             for (let y = 0; y < gridHeight; y++) {
                 const oxygenLevel = oxygenMap[x][y];
                 
-                // 酸素レベルの閾値を上げ、ランダム要素を追加して描画頻度を下げる
-                if (oxygenLevel > 0.03 && Math.random() < 0.05) {  // 0.2の確率でのみ描画
+                if (oxygenLevel > 0.03) {
                     // グリッドの中心座標を計算
                     const centerX = x * gridSize + gridSize / 2;
                     const centerY = y * gridSize + gridSize / 2;
@@ -2474,9 +2330,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const preyCount = lifeforms.length - predatorCount;
             console.log(`Time: ${time}, Lifeforms: ${lifeforms.length} (Predators: ${predatorCount}, Prey: ${preyCount}), Foods: ${plants.length}`);
         }
-         
+            setTimeout(() => {
                 requestAnimationFrame(render);
-            
+            }, 1000 / 60);
     }
     
     // アニメーション開始
@@ -2621,11 +2477,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         this.currentTarget = null;
                     }
                 } else {
-                    // 対象に向かってゆっくり移動（角度ベースの移動を実装）
-                    const angle = Math.atan2(dy, dx);
-                    const moveSpeed = 0.1;
-                    this.velocity.x = Math.cos(angle) * moveSpeed;
-                    this.velocity.y = Math.sin(angle) * moveSpeed;
+                    // 対象に向かってゆっくり移動
+                    this.velocity.x = (dx / distance) * 0.1;
+                    this.velocity.y = (dy / distance) * 0.1;
                 }
             } else {
                 // ランダムな移動（より制限された範囲で）
@@ -2703,7 +2557,27 @@ document.addEventListener('DOMContentLoaded', () => {
         anaerobicBacteria.push(new AnaerobicBacteria(x, y, 0));
     }
 
-
+    // 初期の堆肥を生成
+    const initialCompostCount = Math.floor(width * 0.2); // 画面幅の20%の数の堆肥を生成
+    for (let i = 0; i < initialCompostCount; i++) {
+        const x = Math.random() * width;
+        const y = height - 1 - Math.random() * 3; // 底面付近に配置
+        const debris = new PlantDebris(x, y, 0, 0.2 + Math.random() * 0.3);
+        
+        // 堆肥化が完了した状態に設定
+        debris.isSettled = true;
+        debris.decompositionProgress = 1;
+        debris.isCompost = true;
+        debris.compostNutrientValue = 0.5 + Math.random() * 0.3;
+        debris.color = {
+            hue: 25,
+            saturation: 70,
+            lightness: 15,
+            opacity: 90
+        };
+        
+        plantDebris.push(debris);
+    }
 
     // 初期化部分を修正（Oxygen, CO2オブジェクトの生成を削除）
     // 初期酸素と二酸化炭素の分布を設定
